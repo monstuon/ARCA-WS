@@ -1,0 +1,30 @@
+name: dotnet-ci
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build-test:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup .NET
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 8.0.x
+
+    - name: Restore
+      run: dotnet restore ARCA-WS.slnx
+      working-directory: ARCA-WS
+
+    - name: Build
+      run: dotnet build ARCA-WS.slnx --configuration Release --no-restore
+      working-directory: ARCA-WS
+
+    - name: Test
+      run: dotnet test ARCA-WS/tests/ARCA-WS.Tests/ARCA-WS.Tests.csproj --configuration Release --no-build
+      working-directory: ARCA-WS

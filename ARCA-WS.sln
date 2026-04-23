@@ -1,0 +1,48 @@
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.5.2.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARCA-WS", "ARCA-WS\ARCA-WS.csproj", "{BBEE012A-95E8-9D1C-C72B-BE1AA1B8F365}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "ARCA-WS (1)", "ARCA-WS (1)", "{8CB9382F-8FB8-4128-5D8A-3B343FAEB3DD}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "samples", "samples", "{F372C798-A75B-D994-891B-90B66DCFF55E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "PilotConsumer", "ARCA-WS\samples\PilotConsumer\PilotConsumer.csproj", "{79D4D2A6-8E07-8888-5114-543DC664386E}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{A511C884-952C-AFE7-7561-61D72F4AC11C}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ARCA-WS.Tests", "ARCA-WS\tests\ARCA-WS.Tests\ARCA-WS.Tests.csproj", "{10877EA0-B335-A929-6D5E-CC23C3E2CD84}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{BBEE012A-95E8-9D1C-C72B-BE1AA1B8F365}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{BBEE012A-95E8-9D1C-C72B-BE1AA1B8F365}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{BBEE012A-95E8-9D1C-C72B-BE1AA1B8F365}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{BBEE012A-95E8-9D1C-C72B-BE1AA1B8F365}.Release|Any CPU.Build.0 = Release|Any CPU
+		{79D4D2A6-8E07-8888-5114-543DC664386E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{79D4D2A6-8E07-8888-5114-543DC664386E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{79D4D2A6-8E07-8888-5114-543DC664386E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{79D4D2A6-8E07-8888-5114-543DC664386E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{10877EA0-B335-A929-6D5E-CC23C3E2CD84}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{10877EA0-B335-A929-6D5E-CC23C3E2CD84}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{10877EA0-B335-A929-6D5E-CC23C3E2CD84}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{10877EA0-B335-A929-6D5E-CC23C3E2CD84}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{F372C798-A75B-D994-891B-90B66DCFF55E} = {8CB9382F-8FB8-4128-5D8A-3B343FAEB3DD}
+		{79D4D2A6-8E07-8888-5114-543DC664386E} = {F372C798-A75B-D994-891B-90B66DCFF55E}
+		{A511C884-952C-AFE7-7561-61D72F4AC11C} = {8CB9382F-8FB8-4128-5D8A-3B343FAEB3DD}
+		{10877EA0-B335-A929-6D5E-CC23C3E2CD84} = {A511C884-952C-AFE7-7561-61D72F4AC11C}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {DCB89DC9-24C4-45AE-8F3B-C11840BE13E8}
+	EndGlobalSection
+EndGlobal
