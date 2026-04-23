@@ -409,5 +409,36 @@ public sealed class Wsfev1InvoicingServiceTests
             _ = taxpayerId;
             return Task.FromResult(new LastVoucherResult(100));
         }
+
+        public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> GetCaeaEnabledPointsOfSaleAsync(string endpoint, string token, string sign, long taxpayerId, CancellationToken cancellationToken)
+        {
+            _ = taxpayerId;
+            return Task.FromResult<IReadOnlyList<PuntosHabilitadosCaeaItem>>([new PuntosHabilitadosCaeaItem(1, "CAEA", false)]);
+        }
+
+        public Task<ConsultarComprobanteResult> QueryVoucherAsync(string endpoint, string token, string sign, long taxpayerId, ConsultarComprobanteRequest request, CancellationToken cancellationToken)
+        {
+            _ = taxpayerId;
+            _ = request;
+            return Task.FromResult(new ConsultarComprobanteResult(true, "A", "12345678901234", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(1)), DateOnly.FromDateTime(DateTime.UtcNow), 99, 0, 1000m, []));
+        }
+
+        public Task<CaeaResult> QueryCaeaAsync(string endpoint, string token, string sign, long taxpayerId, CaeaPeriodRequest request, CancellationToken cancellationToken)
+        {
+            _ = taxpayerId;
+            return Task.FromResult(new CaeaResult(request.Period, request.Order, "61234567890123", DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)), [], []));
+        }
+
+        public Task<CaeaResult> RequestCaeaAsync(string endpoint, string token, string sign, long taxpayerId, CaeaPeriodRequest request, CancellationToken cancellationToken)
+        {
+            _ = taxpayerId;
+            return Task.FromResult(new CaeaResult(request.Period, request.Order, "69876543210987", DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)), [], []));
+        }
+
+        public Task<CaeaRegInformativoResult> RegisterCaeaInformativeAsync(string endpoint, string token, string sign, long taxpayerId, CaeaRegInformativoRequest request, CancellationToken cancellationToken)
+        {
+            _ = taxpayerId;
+            return Task.FromResult(new CaeaRegInformativoResult(request.Caea, [new CaeaRegInformativoDetailResult(1, 1, true, [])], []));
+        }
     }
 }

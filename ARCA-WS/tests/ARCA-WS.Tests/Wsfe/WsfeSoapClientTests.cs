@@ -193,7 +193,7 @@ public sealed class WsfeSoapClientTests
     }
 
     [Fact]
-    public async Task AuthorizeVoucherAsync_ShouldMapServiceDates_WhenConceptIsServices()
+    public async Task AuthorizeVoucherAsync_ShouldMapServiceDatesWithFchVtoPago_WhenConceptIsServicesForNonFce()
     {
         var handler = new FakeHttpMessageHandler(_ =>
             Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
@@ -262,6 +262,80 @@ public sealed class WsfeSoapClientTests
         await sut.AuthorizeVoucherAsync("https://wsfe-homo", "tok", "sig", 23296988839, [request], CancellationToken.None);
 
         Assert.Contains("<ar:FchVtoPago>20260430</ar:FchVtoPago>", handler.LastBody!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AuthorizeVoucherAsync_ShouldNotMapFchVtoPago_ForNonFceCreditNoteWithServiceConcept()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildApprovedSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var request = new VoucherRequest(
+            PointOfSale: 1,
+            VoucherType: 7,
+            DocumentType: 80,
+            DocumentNumber: 20123456789,
+            IssueDate: new DateOnly(2026, 4, 15),
+            NetAmount: 1000m,
+            NonTaxableAmount: 0m,
+            ExemptAmount: 0m,
+            TotalAmount: 1210m,
+            CurrencyId: "PES",
+            CurrencyRate: 1m,
+            VoucherNumberFrom: 30,
+            VoucherNumberTo: 30,
+            RecipientVatConditionId: 1,
+            Concept: 2,
+            ServiceDateFrom: "20260401",
+            ServiceDateTo: "20260430",
+            ServicePaymentDueDate: "20260430",
+            VatBreakdown: [new VatItem(5, 1000m, 210m)],
+            AssociatedVouchers: [new AssociatedVoucherInfo(6, 1, 10, 23296988839L)]);
+
+        await sut.AuthorizeVoucherAsync("https://wsfe-homo", "tok", "sig", 23296988839, [request], CancellationToken.None);
+
+        Assert.Contains("<ar:FchServDesde>20260401</ar:FchServDesde>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Contains("<ar:FchServHasta>20260430</ar:FchServHasta>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.DoesNotContain("<ar:FchVtoPago>", handler.LastBody!, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AuthorizeVoucherAsync_ShouldNotMapFchVtoPago_ForFceCreditNoteEvenWhenInformed()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildApprovedSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var request = new VoucherRequest(
+            PointOfSale: 1,
+            VoucherType: 203,
+            DocumentType: 80,
+            DocumentNumber: 20123456789,
+            IssueDate: new DateOnly(2026, 4, 15),
+            NetAmount: 1000m,
+            NonTaxableAmount: 0m,
+            ExemptAmount: 0m,
+            TotalAmount: 1210m,
+            CurrencyId: "PES",
+            CurrencyRate: 1m,
+            VoucherNumberFrom: 30,
+            VoucherNumberTo: 30,
+            RecipientVatConditionId: 1,
+            Concept: 1,
+            ServicePaymentDueDate: "20260430",
+            VatBreakdown: [new VatItem(5, 1000m, 210m)],
+            AssociatedVouchers: [new AssociatedVoucherInfo(201, 1, 10, 23296988839L, "20260415")]);
+
+        await sut.AuthorizeVoucherAsync("https://wsfe-homo", "tok", "sig", 23296988839, [request], CancellationToken.None);
+
+        Assert.DoesNotContain("<ar:FchVtoPago>", handler.LastBody!, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -787,6 +861,124 @@ public sealed class WsfeSoapClientTests
         Assert.DoesNotContain("<ar:Opcionales>", handler.LastBody!, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task GetCaeaEnabledPointsOfSaleAsync_ShouldBuildAndParseExpectedResponse()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildCaeaPointsSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var result = await sut.GetCaeaEnabledPointsOfSaleAsync("https://wsfe-homo", "tok", "sig", 23296988839, CancellationToken.None);
+
+        Assert.Equal("http://ar.gov.afip.dif.FEV1/FEParamGetPtosVenta", handler.LastRequest!.Headers.GetValues("SOAPAction").Single());
+        Assert.Contains("<ar:FEParamGetPtosVenta>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Equal(2, result.Count);
+        Assert.Contains(result, item => item.PointOfSale == 1 && item.EmissionType == "CAEA");
+        Assert.Contains(result, item => item.PointOfSale == 5 && item.EmissionType == "CAEA");
+    }
+
+    [Fact]
+    public async Task QueryVoucherAsync_ShouldBuildAndParseExpectedResponse()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildQueryVoucherSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var result = await sut.QueryVoucherAsync("https://wsfe-homo", "tok", "sig", 23296988839, new ConsultarComprobanteRequest(1, 6, 123), CancellationToken.None);
+
+        Assert.Equal("http://ar.gov.afip.dif.FEV1/FECompConsultar", handler.LastRequest!.Headers.GetValues("SOAPAction").Single());
+        Assert.Contains("<ar:CbteNro>123</ar:CbteNro>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.True(result.Found);
+        Assert.Equal("A", result.Status);
+        Assert.Equal("77777777777777", result.Cae);
+        Assert.Equal(new DateOnly(2026, 5, 30), result.CaeExpiration);
+    }
+
+    [Fact]
+    public async Task QueryCaeaAsync_ShouldBuildAndParseExpectedResponse()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildCaeaQuerySoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var result = await sut.QueryCaeaAsync("https://wsfe-homo", "tok", "sig", 23296988839, new CaeaPeriodRequest(202604, 1), CancellationToken.None);
+
+        Assert.Equal("http://ar.gov.afip.dif.FEV1/FECAEAConsultar", handler.LastRequest!.Headers.GetValues("SOAPAction").Single());
+        Assert.Contains("<ar:Periodo>202604</ar:Periodo>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Equal(202604, result.Period);
+        Assert.Equal(1, result.Order);
+        Assert.Equal("61234567890123", result.Caea);
+    }
+
+    [Fact]
+    public async Task RequestCaeaAsync_ShouldBuildAndParseExpectedResponse()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildCaeaRequestSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var result = await sut.RequestCaeaAsync("https://wsfe-homo", "tok", "sig", 23296988839, new CaeaPeriodRequest(202604, 2), CancellationToken.None);
+
+        Assert.Equal("http://ar.gov.afip.dif.FEV1/FECAEASolicitar", handler.LastRequest!.Headers.GetValues("SOAPAction").Single());
+        Assert.Contains("<ar:Orden>2</ar:Orden>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Equal(202604, result.Period);
+        Assert.Equal(2, result.Order);
+        Assert.Equal("69876543210987", result.Caea);
+    }
+
+    [Fact]
+    public async Task RegisterCaeaInformativeAsync_ShouldBuildAndParseExpectedResponse()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildCaeaRegInformativoSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var detail = new VoucherRequest(
+            PointOfSale: 1,
+            VoucherType: 6,
+            DocumentType: 99,
+            DocumentNumber: 0,
+            IssueDate: new DateOnly(2026, 4, 15),
+            NetAmount: 826.45m,
+            NonTaxableAmount: 0m,
+            ExemptAmount: 0m,
+            TotalAmount: 1000m,
+            CurrencyId: "PES",
+            CurrencyRate: 1m,
+            VoucherNumberFrom: 101,
+            VoucherNumberTo: 101,
+            VatBreakdown: [new VatItem(5, 826.45m, 173.55m)]);
+
+        var result = await sut.RegisterCaeaInformativeAsync(
+            "https://wsfe-homo",
+            "tok",
+            "sig",
+            23296988839,
+            new CaeaRegInformativoRequest(1, 6, "61234567890123", [detail]),
+            CancellationToken.None);
+
+        Assert.Equal("http://ar.gov.afip.dif.FEV1/FECAEARegInformativo", handler.LastRequest!.Headers.GetValues("SOAPAction").Single());
+        Assert.Contains("<ar:CAEA>61234567890123</ar:CAEA>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Single(result.Details);
+        Assert.True(result.Details[0].Accepted);
+        Assert.Equal(101, result.Details[0].VoucherFrom);
+    }
+
     private static string BuildApprovedBatchSoap()
     {
         return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
@@ -808,6 +1000,101 @@ public sealed class WsfeSoapClientTests
                "</ar:FeDetResp>" +
                "</ar:FECAESolicitarResult>" +
                "</ar:FECAESolicitarResponse>" +
+               "</soapenv:Body>" +
+               "</soapenv:Envelope>";
+    }
+
+    private static string BuildCaeaPointsSoap()
+    {
+        return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
+               "<soapenv:Body>" +
+               "<ar:FEParamGetPtosVentaResponse>" +
+               "<ar:FEParamGetPtosVentaResult>" +
+               "<ar:ResultGet>" +
+               "<ar:PtoVenta><ar:Nro>1</ar:Nro><ar:EmisionTipo>CAEA</ar:EmisionTipo><ar:Bloqueado>N</ar:Bloqueado></ar:PtoVenta>" +
+               "<ar:PtoVenta><ar:Nro>5</ar:Nro><ar:EmisionTipo>CAEA</ar:EmisionTipo><ar:Bloqueado>N</ar:Bloqueado></ar:PtoVenta>" +
+               "</ar:ResultGet>" +
+               "</ar:FEParamGetPtosVentaResult>" +
+               "</ar:FEParamGetPtosVentaResponse>" +
+               "</soapenv:Body>" +
+               "</soapenv:Envelope>";
+    }
+
+    private static string BuildQueryVoucherSoap()
+    {
+        return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
+               "<soapenv:Body>" +
+               "<ar:FECompConsultarResponse>" +
+               "<ar:FECompConsultarResult>" +
+               "<ar:ResultGet>" +
+               "<ar:Resultado>A</ar:Resultado>" +
+               "<ar:CodAutorizacion>77777777777777</ar:CodAutorizacion>" +
+               "<ar:FchVto>20260530</ar:FchVto>" +
+               "<ar:CbteFch>20260415</ar:CbteFch>" +
+               "<ar:DocTipo>99</ar:DocTipo>" +
+               "<ar:DocNro>0</ar:DocNro>" +
+               "<ar:ImpTotal>1000.00</ar:ImpTotal>" +
+               "</ar:ResultGet>" +
+               "</ar:FECompConsultarResult>" +
+               "</ar:FECompConsultarResponse>" +
+               "</soapenv:Body>" +
+               "</soapenv:Envelope>";
+    }
+
+    private static string BuildCaeaQuerySoap()
+    {
+        return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
+               "<soapenv:Body>" +
+               "<ar:FECAEAConsultarResponse>" +
+               "<ar:FECAEAConsultarResult>" +
+               "<ar:ResultGet>" +
+               "<ar:Periodo>202604</ar:Periodo>" +
+               "<ar:Orden>1</ar:Orden>" +
+               "<ar:CAEA>61234567890123</ar:CAEA>" +
+               "<ar:FchProceso>20260401</ar:FchProceso>" +
+               "<ar:FchTopeInf>20260415</ar:FchTopeInf>" +
+               "</ar:ResultGet>" +
+               "</ar:FECAEAConsultarResult>" +
+               "</ar:FECAEAConsultarResponse>" +
+               "</soapenv:Body>" +
+               "</soapenv:Envelope>";
+    }
+
+    private static string BuildCaeaRequestSoap()
+    {
+        return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
+               "<soapenv:Body>" +
+               "<ar:FECAEASolicitarResponse>" +
+               "<ar:FECAEASolicitarResult>" +
+               "<ar:ResultGet>" +
+               "<ar:Periodo>202604</ar:Periodo>" +
+               "<ar:Orden>2</ar:Orden>" +
+               "<ar:CAEA>69876543210987</ar:CAEA>" +
+               "<ar:FchProceso>20260416</ar:FchProceso>" +
+               "<ar:FchTopeInf>20260430</ar:FchTopeInf>" +
+               "</ar:ResultGet>" +
+               "</ar:FECAEASolicitarResult>" +
+               "</ar:FECAEASolicitarResponse>" +
+               "</soapenv:Body>" +
+               "</soapenv:Envelope>";
+    }
+
+    private static string BuildCaeaRegInformativoSoap()
+    {
+        return "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/' xmlns:ar='http://ar.gov.afip.dif.FEV1/'>" +
+               "<soapenv:Body>" +
+               "<ar:FECAEARegInformativoResponse>" +
+               "<ar:FECAEARegInformativoResult>" +
+               "<ar:CAEA>61234567890123</ar:CAEA>" +
+               "<ar:FeDetResp>" +
+               "<ar:FECAEARegInfDetResponse>" +
+               "<ar:CbteDesde>101</ar:CbteDesde>" +
+               "<ar:CbteHasta>101</ar:CbteHasta>" +
+               "<ar:Resultado>A</ar:Resultado>" +
+               "</ar:FECAEARegInfDetResponse>" +
+               "</ar:FeDetResp>" +
+               "</ar:FECAEARegInformativoResult>" +
+               "</ar:FECAEARegInformativoResponse>" +
                "</soapenv:Body>" +
                "</soapenv:Envelope>";
     }

@@ -61,4 +61,49 @@ public sealed record LastVoucherResult(
 
 public sealed record ParameterItem(string Id, string Description);
 
+public sealed record PuntosHabilitadosCaeaItem(int PointOfSale, string? EmissionType, bool? IsBlocked);
+
+public sealed record ConsultarComprobanteRequest(int PointOfSale, int VoucherType, long VoucherNumber);
+
+public sealed record ConsultarComprobanteResult(
+    bool Found,
+    string? Status,
+    string? Cae,
+    DateOnly? CaeExpiration,
+    DateOnly? IssueDate,
+    int? DocumentType,
+    long? DocumentNumber,
+    decimal? TotalAmount,
+    IReadOnlyList<WsfeError> Errors);
+
+public sealed record CaeaPeriodRequest(int Period, int Order);
+
+public sealed record CaeaResult(
+    int Period,
+    int Order,
+    string? Caea,
+    DateOnly? ProcessDate,
+    DateOnly? DueDate,
+    IReadOnlyList<PuntosHabilitadosCaeaItem> PointsOfSale,
+    IReadOnlyList<WsfeError> Errors);
+
+public sealed record CaeaRegInformativoRequest(
+    int PointOfSale,
+    int VoucherType,
+    string Caea,
+    IReadOnlyList<VoucherRequest> Details,
+    string? Token = null,
+    string? Sign = null);
+
+public sealed record CaeaRegInformativoDetailResult(
+    int VoucherFrom,
+    int VoucherTo,
+    bool Accepted,
+    IReadOnlyList<WsfeError> Errors);
+
+public sealed record CaeaRegInformativoResult(
+    string? Caea,
+    IReadOnlyList<CaeaRegInformativoDetailResult> Details,
+    IReadOnlyList<WsfeError> Errors);
+
 public sealed record WsfeError(string Code, string Message);

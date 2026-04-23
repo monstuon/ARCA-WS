@@ -22,6 +22,16 @@ public interface IWsfev1InvoicingService
     Task<IReadOnlyList<VoucherAuthorizationResult>> AuthorizeVouchersAsync(IReadOnlyList<VoucherRequest> requests, string correlationId, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<ParameterItem>> GetParameterCatalogAsync(string catalogName, string correlationId, CancellationToken cancellationToken = default);
+
+    Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default);
+
+    Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default);
+
+    Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default);
+
+    Task<CaeaResult> CAEASolicitarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default);
+
+    Task<CaeaRegInformativoResult> CAEARegInformativoAsync(CaeaRegInformativoRequest request, string correlationId, CancellationToken cancellationToken = default);
 }
 
 public sealed class Wsfev1InvoicingService(
@@ -70,7 +80,7 @@ public sealed class Wsfev1InvoicingService(
                 }
             }
 
-            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: hasExternal, cancellationToken: ct);
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
             var result = await wsfeSoapClient.GetLastVoucherAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, pointOfSale, voucherType, ct);
             metrics.RecordCredentialSource("wsfe.get-last-voucher", "wsaa-fallback");
             return result with
@@ -91,6 +101,82 @@ public sealed class Wsfev1InvoicingService(
             var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
             return await wsfeSoapClient.GetParameterCatalogAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, catalogName, ct);
+        }, cancellationToken);
+    }
+
+    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default)
+    {
+        return ExecuteOperationAsync("wsfe.get-caea-points", correlationId, async ct =>
+        {
+            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
+            var endpoint = options.Endpoints.GetWsfe(options.Environment);
+            return await wsfeSoapClient.GetCaeaEnabledPointsOfSaleAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, ct);
+        }, cancellationToken);
+    }
+
+    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default)
+    {
+        validator.ValidateConsultarComprobanteRequest(request);
+        return ExecuteOperationAsync("wsfe.consultar-comprobante", correlationId, async ct =>
+        {
+            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
+            var endpoint = options.Endpoints.GetWsfe(options.Environment);
+            return await wsfeSoapClient.QueryVoucherAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+        }, cancellationToken);
+    }
+
+    public Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default)
+    {
+        validator.ValidateCaeaPeriodRequest(request);
+        return ExecuteOperationAsync("wsfe.caea-consultar", correlationId, async ct =>
+        {
+            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
+            var endpoint = options.Endpoints.GetWsfe(options.Environment);
+            return await wsfeSoapClient.QueryCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+        }, cancellationToken);
+    }
+
+    public Task<CaeaResult> CAEASolicitarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default)
+    {
+        validator.ValidateCaeaPeriodRequest(request);
+        return ExecuteOperationAsync("wsfe.caea-solicitar", correlationId, async ct =>
+        {
+            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
+            var endpoint = options.Endpoints.GetWsfe(options.Environment);
+            return await wsfeSoapClient.RequestCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+        }, cancellationToken);
+    }
+
+    public Task<CaeaRegInformativoResult> CAEARegInformativoAsync(CaeaRegInformativoRequest request, string correlationId, CancellationToken cancellationToken = default)
+    {
+        validator.ValidateCaeaRegInformativoRequest(request);
+        return ExecuteOperationAsync("wsfe.caea-reg-informativo", correlationId, async ct =>
+        {
+            var endpoint = options.Endpoints.GetWsfe(options.Environment);
+
+            var hasExternal = !string.IsNullOrWhiteSpace(request.Token) && !string.IsNullOrWhiteSpace(request.Sign);
+            if (!hasExternal && (!string.IsNullOrWhiteSpace(request.Token) || !string.IsNullOrWhiteSpace(request.Sign)))
+            {
+                throw new ArcaExternalCredentialsException("Token and Sign must be provided together when external credentials are used.")
+                {
+                    CorrelationId = correlationId
+                };
+            }
+
+            if (hasExternal)
+            {
+                try
+                {
+                    return await wsfeSoapClient.RegisterCaeaInformativeAsync(endpoint, request.Token!, request.Sign!, options.TaxpayerId, request, ct);
+                }
+                catch (ArcaFunctionalException ex) when (IsAuthenticationFailure(ex))
+                {
+                    logger.LogWarning(ex, "External credentials rejected by WSFE in wsfe.caea-reg-informativo. CorrelationId={CorrelationId}. Executing WSAA fallback.", correlationId);
+                }
+            }
+
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            return await wsfeSoapClient.RegisterCaeaInformativeAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
         }, cancellationToken);
     }
 
@@ -153,7 +239,7 @@ public sealed class Wsfev1InvoicingService(
             AuthResolution fallbackResolution;
             try
             {
-                fallbackResolution = await GetApiAuthResolutionAsync(forceRefresh: true, correlationId, cancellationToken);
+                fallbackResolution = await GetApiAuthResolutionAsync(forceRefresh: false, correlationId, cancellationToken);
             }
             catch (ArcaException authEx)
             {

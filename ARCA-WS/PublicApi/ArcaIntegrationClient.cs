@@ -16,4 +16,19 @@ public sealed class ArcaIntegrationClient(IWsfev1InvoicingService invoicingServi
 
     public Task<IReadOnlyList<ParameterItem>> GetParameterCatalogAsync(string catalogName, string correlationId, CancellationToken cancellationToken = default)
         => invoicingService.GetParameterCatalogAsync(catalogName, correlationId, cancellationToken);
+
+    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default)
+        => invoicingService.PuntosHabilitadosCaeaAsync(correlationId, cancellationToken);
+
+    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default)
+        => invoicingService.ConsultarComprobanteAsync(request, correlationId, cancellationToken);
+
+    public Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default)
+        => invoicingService.CAEAConsultarAsync(request, correlationId, cancellationToken);
+
+    public Task<CaeaResult> CAEASolicitarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default)
+        => invoicingService.CAEASolicitarAsync(request, correlationId, cancellationToken);
+
+    public Task<CaeaRegInformativoResult> CAEARegInformativoAsync(CaeaRegInformativoRequest request, string correlationId, CancellationToken cancellationToken = default)
+        => invoicingService.CAEARegInformativoAsync(request, correlationId, cancellationToken);
 }

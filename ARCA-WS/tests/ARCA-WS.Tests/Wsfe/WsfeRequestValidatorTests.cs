@@ -160,6 +160,21 @@ public sealed class WsfeRequestValidatorTests
     }
 
     [Fact]
+    public void Validate_ShouldPass_WhenNonFceCreditNoteServiceConceptOmitsServicePaymentDueDate()
+    {
+        var sut = new WsfeRequestValidator();
+        var req = new VoucherRequest(1, 3, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
+            NetAmount: 1000m, NonTaxableAmount: 0m, ExemptAmount: 0m, TotalAmount: 1210m,
+            CurrencyId: "PES", CurrencyRate: 1m,
+            Concept: 2,
+            ServiceDateFrom: "20260401", ServiceDateTo: "20260430",
+            VatBreakdown: [new VatItem(5, 1000m, 210m)],
+            AssociatedVouchers: [new AssociatedVoucherInfo(1, 1, 10, 23296988839L)]);
+
+        sut.Validate(req);
+    }
+
+    [Fact]
     public void Validate_ShouldThrow_WhenCreditNoteHasNoAssociatedVouchers()
     {
         var sut = new WsfeRequestValidator();
@@ -377,7 +392,21 @@ public sealed class WsfeRequestValidatorTests
     }
 
     [Fact]
-    public void Validate_ShouldPass_WhenNcFceInformsServicePaymentDueDate()
+    public void Validate_ShouldPass_WhenNcFceOmitsServicePaymentDueDate()
+    {
+        var sut = new WsfeRequestValidator();
+        var req = new VoucherRequest(1, 203, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
+            NetAmount: 1000m, NonTaxableAmount: 0m, ExemptAmount: 0m, TotalAmount: 1210m,
+            CurrencyId: "PES", CurrencyRate: 1m,
+            RecipientVatConditionId: 1,
+            VatBreakdown: [new VatItem(5, 1000m, 210m)],
+            AssociatedVouchers: [new AssociatedVoucherInfo(201, 1, 10, 23296988839L, "20260415")]);
+
+        sut.Validate(req);
+    }
+
+    [Fact]
+    public void Validate_ShouldThrow_WhenNcFceInformsServicePaymentDueDate()
     {
         var sut = new WsfeRequestValidator();
         var req = new VoucherRequest(1, 203, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
@@ -388,23 +417,9 @@ public sealed class WsfeRequestValidatorTests
             VatBreakdown: [new VatItem(5, 1000m, 210m)],
             AssociatedVouchers: [new AssociatedVoucherInfo(201, 1, 10, 23296988839L, "20260415")]);
 
-        sut.Validate(req);
-    }
-
-    [Fact]
-    public void Validate_ShouldThrow_WhenNcFceDoesNotInformServicePaymentDueDate()
-    {
-        var sut = new WsfeRequestValidator();
-        var req = new VoucherRequest(1, 203, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
-            NetAmount: 1000m, NonTaxableAmount: 0m, ExemptAmount: 0m, TotalAmount: 1210m,
-            CurrencyId: "PES", CurrencyRate: 1m,
-            RecipientVatConditionId: 1,
-            VatBreakdown: [new VatItem(5, 1000m, 210m)],
-            AssociatedVouchers: [new AssociatedVoucherInfo(201, 1, 10, 23296988839L, "20260415")]);
-
         var ex = Assert.Throws<ArcaValidationException>(() => sut.Validate(req));
 
-        Assert.Contains("ServicePaymentDueDate", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("must not inform ServicePaymentDueDate", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("203", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -512,6 +527,55 @@ public sealed class WsfeRequestValidatorTests
         var req2 = req1 with { VoucherNumberFrom = 11, VoucherNumberTo = 11 };
 
         sut.ValidateBatch([req1, req2]);
+    }
+
+    [Fact]
+    public void ValidateConsultarComprobanteRequest_ShouldThrow_WhenVoucherNumberIsInvalid()
+    {
+        var sut = new WsfeRequestValidator();
+
+        var ex = Assert.Throws<ArcaValidationException>(() =>
+            sut.ValidateConsultarComprobanteRequest(new ConsultarComprobanteRequest(1, 6, 0)));
+
+        Assert.Contains("VoucherNumber", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidateCaeaPeriodRequest_ShouldThrow_WhenOrderIsInvalid()
+    {
+        var sut = new WsfeRequestValidator();
+
+        var ex = Assert.Throws<ArcaValidationException>(() =>
+            sut.ValidateCaeaPeriodRequest(new CaeaPeriodRequest(202604, 3)));
+
+        Assert.Contains("Order", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void ValidateCaeaRegInformativoRequest_ShouldThrow_WhenCaeaIsNot14Digits()
+    {
+        var sut = new WsfeRequestValidator();
+
+        var detail = new VoucherRequest(
+            PointOfSale: 1,
+            VoucherType: 6,
+            DocumentType: 99,
+            DocumentNumber: 0,
+            IssueDate: DateOnly.FromDateTime(DateTime.UtcNow),
+            NetAmount: 826.45m,
+            NonTaxableAmount: 0m,
+            ExemptAmount: 0m,
+            TotalAmount: 1000m,
+            CurrencyId: "PES",
+            CurrencyRate: 1m,
+            VoucherNumberFrom: 1,
+            VoucherNumberTo: 1,
+            VatBreakdown: [new VatItem(5, 826.45m, 173.55m)]);
+
+        var ex = Assert.Throws<ArcaValidationException>(() =>
+            sut.ValidateCaeaRegInformativoRequest(new CaeaRegInformativoRequest(1, 6, "123", [detail])));
+
+        Assert.Contains("14-digit", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 }
 

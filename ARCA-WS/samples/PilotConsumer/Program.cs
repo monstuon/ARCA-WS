@@ -5,6 +5,7 @@ using ARCA_WS.Domain.Wsfe;
 using ARCA_WS.PublicApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using System.Globalization;
 
 // Nota: TLS 1.2 y la validación de certificados se configuran automáticamente
 // en el HttpClientHandler de la librería según el EnvironmentProfile elegido.
@@ -15,6 +16,7 @@ services.AddLogging(builder => builder.AddSimpleConsole());
 
 var baseDir = AppContext.BaseDirectory;
 var certPath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\..\..\\Certificado\isfhomo.p12"));
+var credentialsFilePath = Path.GetFullPath(Path.Combine(baseDir, @"..\..\..\Credenciales.txt"));
 
 // ── Parámetros de prueba ────────────────────────────────────────────────────
 const int pointOfSale   = 1;
@@ -87,6 +89,19 @@ var anyFailed = false;
 
 ErpCredentialSnapshot? erpCredentials = null;
 
+if (TryLoadPersistedCredentials(credentialsFilePath, out var persistedCredentials))
+{
+    erpCredentials = persistedCredentials;
+    logger.LogInformation(
+        "Credenciales WSAA cargadas desde archivo local: {CredentialFile}. Expiran: {Expiration:o}",
+        credentialsFilePath,
+        persistedCredentials.Expiration);
+}
+else
+{
+    logger.LogInformation("No se encontraron credenciales WSAA vigentes en archivo local: {CredentialFile}", credentialsFilePath);
+}
+
 VoucherRequest ApplyErpCredentials(VoucherRequest request)
 {
     if (erpCredentials is null)
@@ -122,6 +137,93 @@ void CaptureErpCredentialsFromResult(string scenario, VoucherAuthorizationResult
         "{Scenario}: la API emitio credenciales WSAA (expiran {Expiration:o}); el consumer las persiste para reutilizarlas.",
         scenario,
         erpCredentials.Expiration);
+
+    try
+    {
+        SavePersistedCredentials(credentialsFilePath, erpCredentials);
+        logger.LogInformation("Credenciales WSAA guardadas en {CredentialFile}", credentialsFilePath);
+    }
+    catch (Exception ex)
+    {
+        logger.LogWarning(ex, "No se pudieron guardar credenciales WSAA en {CredentialFile}", credentialsFilePath);
+    }
+}
+
+bool TryLoadPersistedCredentials(string filePath, out ErpCredentialSnapshot credentials)
+{
+    credentials = default!;
+
+    if (!File.Exists(filePath))
+    {
+        return false;
+    }
+
+    var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var line in File.ReadLines(filePath))
+    {
+        if (string.IsNullOrWhiteSpace(line) || line.StartsWith('#'))
+        {
+            continue;
+        }
+
+        var separator = line.IndexOf('=');
+        if (separator <= 0)
+        {
+            continue;
+        }
+
+        var key = line[..separator].Trim();
+        var value = line[(separator + 1)..].Trim();
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            values[key] = value;
+        }
+    }
+
+    if (!values.TryGetValue("token", out var token) ||
+        !values.TryGetValue("sign", out var sign) ||
+        string.IsNullOrWhiteSpace(token) ||
+        string.IsNullOrWhiteSpace(sign))
+    {
+        return false;
+    }
+
+    DateTimeOffset expiration;
+    if (values.TryGetValue("expiration", out var expirationRaw) &&
+        DateTimeOffset.TryParse(expirationRaw, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsedExpiration))
+    {
+        expiration = parsedExpiration;
+    }
+    else
+    {
+        expiration = DateTimeOffset.UtcNow.AddMinutes(5);
+    }
+
+    if (expiration <= DateTimeOffset.UtcNow.AddSeconds(30))
+    {
+        return false;
+    }
+
+    credentials = new ErpCredentialSnapshot(token, sign, expiration);
+    return true;
+}
+
+void SavePersistedCredentials(string filePath, ErpCredentialSnapshot credentials)
+{
+    var directory = Path.GetDirectoryName(filePath);
+    if (!string.IsNullOrWhiteSpace(directory))
+    {
+        Directory.CreateDirectory(directory);
+    }
+
+    var lines = new[]
+    {
+        $"token={credentials.Token}",
+        $"sign={credentials.Sign}",
+        $"expiration={credentials.Expiration:o}"
+    };
+
+    File.WriteAllLines(filePath, lines);
 }
 
 IReadOnlyList<OptionalItem>? BuildFceOptionals()
@@ -182,7 +284,7 @@ var cfProdVoucherNum = await RunScenarioAsync("CF-Productos", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 6, "cf-prod");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          6,
         DocumentType:         99,
@@ -199,8 +301,8 @@ var cfProdVoucherNum = await RunScenarioAsync("CF-Productos", async () =>
         RecipientVatConditionId: 5,
         Concept:              1,
         VatBreakdown:         [new VatItem(5, 826.45m, 173.55m)],
-        VatTotal:             173.55m);
-    var result = await client.AuthorizeVoucherAsync(req, "cf-prod");
+        VatTotal:             173.55m));
+ var result = await client.AuthorizeVoucherAsync(req, "cf-prod");
     return (voucherNum, result);
 });
 
@@ -231,7 +333,7 @@ var cfSvcVoucherNum = await RunScenarioAsync("CF-Servicios", async () =>
         ServicePaymentDueDate: serviceDue,
         VatBreakdown:         [new VatItem(5, 826.45m, 173.55m)],
         VatTotal:             173.55m));
-    var result = await client.AuthorizeVoucherAsync(req, "cf-svc");
+ var result = await client.AuthorizeVoucherAsync(req, "cf-svc");
     return (voucherNum, result);
 });
 
@@ -240,7 +342,7 @@ var riProdVoucherNum = await RunScenarioAsync("RI-Productos", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 1, "ri-prod");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          1,
         DocumentType:         80,
@@ -257,8 +359,8 @@ var riProdVoucherNum = await RunScenarioAsync("RI-Productos", async () =>
         RecipientVatConditionId: 1,
         Concept:              1,
         VatBreakdown:         [new VatItem(5, 1000m, 210m)],
-        VatTotal:             210m);
-    var result = await client.AuthorizeVoucherAsync(req, "ri-prod");
+        VatTotal:             210m));
+ var result = await client.AuthorizeVoucherAsync(req, "ri-prod");
     return (voucherNum, result);
 });
 
@@ -267,7 +369,7 @@ await RunScenarioAsync("RI-Servicios", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 1, "ri-svc");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          1,
         DocumentType:         80,
@@ -287,8 +389,8 @@ await RunScenarioAsync("RI-Servicios", async () =>
         ServiceDateTo:        serviceTo,
         ServicePaymentDueDate: serviceDue,
         VatBreakdown:         [new VatItem(5, 1000m, 210m)],
-        VatTotal:             210m);
-    var result = await client.AuthorizeVoucherAsync(req, "ri-svc");
+        VatTotal:             210m));
+ var result = await client.AuthorizeVoucherAsync(req, "ri-svc");
     return (voucherNum, result);
 });
 
@@ -297,7 +399,7 @@ await RunScenarioAsync("Exento-Productos", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 6, "ex-prod");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          6,
         DocumentType:         86,
@@ -312,8 +414,8 @@ await RunScenarioAsync("Exento-Productos", async () =>
         VoucherNumberFrom:    voucherNum,
         VoucherNumberTo:      voucherNum,
         RecipientVatConditionId: 4,
-        Concept:              1);
-    var result = await client.AuthorizeVoucherAsync(req, "ex-prod");
+        Concept:              1));
+ var result = await client.AuthorizeVoucherAsync(req, "ex-prod");
     return (voucherNum, result);
 });
 
@@ -322,7 +424,7 @@ await RunScenarioAsync("Exento-Servicios", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 6, "ex-svc");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          6,
         DocumentType:         86,
@@ -340,8 +442,8 @@ await RunScenarioAsync("Exento-Servicios", async () =>
         Concept:              2,
         ServiceDateFrom:      serviceFrom,
         ServiceDateTo:        serviceTo,
-        ServicePaymentDueDate: serviceDue);
-    var result = await client.AuthorizeVoucherAsync(req, "ex-svc");
+        ServicePaymentDueDate: serviceDue));
+ var result = await client.AuthorizeVoucherAsync(req, "ex-svc");
     return (voucherNum, result);
 });
 
@@ -352,7 +454,7 @@ if (cfProdVoucherNum is not null)
     {
         var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 7, "nc-b");
         var voucherNum = last.Number + 1;
-        var req = new VoucherRequest(
+        var req = ApplyErpCredentials(new VoucherRequest(
             PointOfSale:          pointOfSale,
             VoucherType:          7,
             DocumentType:         99,
@@ -370,8 +472,8 @@ if (cfProdVoucherNum is not null)
             Concept:              1,
             VatBreakdown:         [new VatItem(5, 826.45m, 173.55m)],
             VatTotal:             173.55m,
-            AssociatedVouchers:   [new AssociatedVoucherInfo(6, pointOfSale, cfProdVoucherNum.Value, issuerCuit)]);
-        var result = await client.AuthorizeVoucherAsync(req, "nc-b");
+            AssociatedVouchers:   [new AssociatedVoucherInfo(6, pointOfSale, cfProdVoucherNum.Value, issuerCuit)]));
+ var result = await client.AuthorizeVoucherAsync(req, "nc-b");
         return (voucherNum, result);
     });
 }
@@ -387,7 +489,7 @@ await RunScenarioAsync("USD-FC-B", async () =>
 {
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 6, "usd-fcb");
     var voucherNum = last.Number + 1;
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          6,
         DocumentType:         99,
@@ -404,8 +506,8 @@ await RunScenarioAsync("USD-FC-B", async () =>
         RecipientVatConditionId: 5,
         Concept:              1,
         VatBreakdown:         [new VatItem(5, 82.64m, 17.36m)],
-        VatTotal:             17.36m);
-    var result = await client.AuthorizeVoucherAsync(req, "usd-fcb");
+        VatTotal:             17.36m));
+ var result = await client.AuthorizeVoucherAsync(req, "usd-fcb");
     return (voucherNum, result);
 });
 
@@ -415,7 +517,7 @@ await RunScenarioAsync("IIBB-Percepcion", async () =>
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 6, "iibb-perc");
     var voucherNum = last.Number + 1;
     // NetAmount=1000, IVA21%=210, PercepciónIIBB1.5%=15 → Total=1225
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          6,
         DocumentType:         99,
@@ -434,8 +536,8 @@ await RunScenarioAsync("IIBB-Percepcion", async () =>
         VatBreakdown:         [new VatItem(5, 1000m, 210m)],
         VatTotal:             210m,
         TaxBreakdown:         [new TaxItem(2, "Percepción IIBB CABA", 1000m, 1.5m, 15m)],
-        TaxTotal:             15m);
-    var result = await client.AuthorizeVoucherAsync(req, "iibb-perc");
+        TaxTotal:             15m));
+ var result = await client.AuthorizeVoucherAsync(req, "iibb-perc");
     if (result.Approved)
     {
         logger.LogInformation(
@@ -454,7 +556,7 @@ if (cfProdVoucherNum is not null && cfSvcVoucherNum is not null)
     {
         var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 7, "nc-multi");
         var voucherNum = last.Number + 1;
-        var req = new VoucherRequest(
+        var req = ApplyErpCredentials(new VoucherRequest(
             PointOfSale:          pointOfSale,
             VoucherType:          7,
             DocumentType:         99,
@@ -475,8 +577,8 @@ if (cfProdVoucherNum is not null && cfSvcVoucherNum is not null)
             AssociatedVouchers:   [
                 new AssociatedVoucherInfo(6, pointOfSale, cfProdVoucherNum.Value, issuerCuit),
                 new AssociatedVoucherInfo(6, pointOfSale, cfSvcVoucherNum.Value, issuerCuit)
-            ]);
-        var result = await client.AuthorizeVoucherAsync(req, "nc-multi");
+            ]));
+ var result = await client.AuthorizeVoucherAsync(req, "nc-multi");
         if (result.Approved)
         {
             logger.LogInformation(
@@ -500,7 +602,7 @@ var fceAVoucherNum = await RunScenarioAsync("FCE-A", async () =>
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 201, "fce-a");
     var voucherNum = last.Number + 1;
     var fceDueDate = today.AddDays(30).ToString("yyyyMMdd"); // Vencimiento a 30 días
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          201,
         DocumentType:         80,
@@ -519,7 +621,7 @@ var fceAVoucherNum = await RunScenarioAsync("FCE-A", async () =>
         ServicePaymentDueDate: fceDueDate,
         VatBreakdown:         [new VatItem(5, 1000m, 210m)],
         VatTotal:             210m,
-        Optionals:            BuildFceOptionals());
+        Optionals:            BuildFceOptionals()));
     var result = await client.AuthorizeVoucherAsync(req, "fce-a");
     if (result.Approved)
     {
@@ -537,7 +639,7 @@ var fceBVoucherNum = await RunScenarioAsync("FCE-B", async () =>
     var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 206, "fce-b");
     var voucherNum = last.Number + 1;
     var fceDueDate = today.AddDays(30).ToString("yyyyMMdd"); // Vencimiento a 30 días
-    var req = new VoucherRequest(
+    var req = ApplyErpCredentials(new VoucherRequest(
         PointOfSale:          pointOfSale,
         VoucherType:          206,
         DocumentType:         80,
@@ -556,7 +658,7 @@ var fceBVoucherNum = await RunScenarioAsync("FCE-B", async () =>
         ServicePaymentDueDate: fceDueDate,
         VatBreakdown:         [new VatItem(5, 1000m, 210m)],
         VatTotal:             210m,
-        Optionals:            BuildFceOptionals());
+        Optionals:            BuildFceOptionals()));
     var result = await client.AuthorizeVoucherAsync(req, "fce-b");
     if (result.Approved)
     {
@@ -575,7 +677,7 @@ if (fceAVoucherNum is not null)
     {
         var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 203, "nc-fce-a");
         var voucherNum = last.Number + 1;
-        var req = new VoucherRequest(
+        var req = ApplyErpCredentials(new VoucherRequest(
             PointOfSale:          pointOfSale,
             VoucherType:          203,
             DocumentType:         80,
@@ -594,8 +696,8 @@ if (fceAVoucherNum is not null)
             VatBreakdown:         [new VatItem(5, 1000m, 210m)],
             VatTotal:             210m,
             Optionals:            BuildNcFceOptionals(isCreditCancellation: false),
-            AssociatedVouchers:   [new AssociatedVoucherInfo(201, pointOfSale, fceAVoucherNum.Value, issuerCuit, issueDateYmd)]);
-        var result = await client.AuthorizeVoucherAsync(req, "nc-fce-a");
+            AssociatedVouchers:   [new AssociatedVoucherInfo(201, pointOfSale, fceAVoucherNum.Value, issuerCuit, issueDateYmd)]));
+ var result = await client.AuthorizeVoucherAsync(req, "nc-fce-a");
         if (result.Approved)
         {
             logger.LogInformation(
@@ -620,7 +722,7 @@ if (fceBVoucherNum is not null)
     {
         var last      = await client.GetLastAuthorizedVoucherAsync(pointOfSale, 208, "nc-fce-b");
         var voucherNum = last.Number + 1;
-        var req = new VoucherRequest(
+        var req = ApplyErpCredentials(new VoucherRequest(
             PointOfSale:          pointOfSale,
             VoucherType:          208,
             DocumentType:         80,
@@ -639,8 +741,8 @@ if (fceBVoucherNum is not null)
             VatBreakdown:         [new VatItem(5, 1000m, 210m)],
             VatTotal:             210m,
             Optionals:            BuildNcFceOptionals(isCreditCancellation: false),
-            AssociatedVouchers:   [new AssociatedVoucherInfo(206, pointOfSale, fceBVoucherNum.Value, issuerCuit, issueDateYmd)]);
-        var result = await client.AuthorizeVoucherAsync(req, "nc-fce-b");
+            AssociatedVouchers:   [new AssociatedVoucherInfo(206, pointOfSale, fceBVoucherNum.Value, issuerCuit, issueDateYmd)]));
+ var result = await client.AuthorizeVoucherAsync(req, "nc-fce-b");
         if (result.Approved)
         {
             logger.LogInformation(
@@ -668,7 +770,7 @@ try
     var num1     = lastNum + 1;
     var num2     = lastNum + 2;
 
-    VoucherRequest MakeCfReq(int num) => new VoucherRequest(
+    VoucherRequest MakeCfReq(int num) => ApplyErpCredentials(new VoucherRequest(
         PointOfSale:             pointOfSale,
         VoucherType:             6,
         DocumentType:            99,
@@ -685,7 +787,7 @@ try
         RecipientVatConditionId: 5,
         Concept:                 1,
         VatBreakdown:            [new VatItem(5, 826.45m, 173.55m)],
-        VatTotal:                173.55m);
+        VatTotal:                173.55m));
 
     var batchResults = await client.AuthorizeVouchersAsync([MakeCfReq(num1), MakeCfReq(num2)], "cf-lote-2");
 

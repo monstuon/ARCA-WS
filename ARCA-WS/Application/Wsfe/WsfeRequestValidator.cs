@@ -119,22 +119,37 @@ public sealed class WsfeRequestValidator
         if (request.Concept == 2 || request.Concept == 3)
         {
             if (string.IsNullOrEmpty(request.ServiceDateFrom) ||
-                string.IsNullOrEmpty(request.ServiceDateTo) ||
-                string.IsNullOrEmpty(request.ServicePaymentDueDate))
+                string.IsNullOrEmpty(request.ServiceDateTo))
             {
-                throw new ArcaValidationException("ServiceDateFrom, ServiceDateTo, and ServicePaymentDueDate are required when Concept is 2 (Servicios) or 3 (Productos y Servicios).");
+                throw new ArcaValidationException("ServiceDateFrom and ServiceDateTo are required when Concept is 2 (Servicios) or 3 (Productos y Servicios).");
             }
 
             if (!DateOnly.TryParseExact(request.ServiceDateFrom, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateFrom) ||
-                !DateOnly.TryParseExact(request.ServiceDateTo, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateTo) ||
-                !DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                !DateOnly.TryParseExact(request.ServiceDateTo, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateTo))
             {
-                throw new ArcaValidationException("ServiceDateFrom, ServiceDateTo, and ServicePaymentDueDate must be valid dates in yyyyMMdd format.");
+                throw new ArcaValidationException("ServiceDateFrom and ServiceDateTo must be valid dates in yyyyMMdd format.");
             }
 
             if (dateFrom > dateTo)
             {
                 throw new ArcaValidationException("ServiceDateFrom must be less than or equal to ServiceDateTo.");
+            }
+
+            // Notas de Crédito no requieren FchVtoPago
+            var isCreditNote = request.VoucherType is 3 or 7 or 8 or 203 or 208;
+            
+            // Facturas de servicios (no NC) requieren ServicePaymentDueDate
+            if (!isCreditNote)
+            {
+                if (string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
+                {
+                    throw new ArcaValidationException("ServicePaymentDueDate is required for service invoices (Concept 2 or 3).");
+                }
+
+                if (!DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+                {
+                    throw new ArcaValidationException("ServicePaymentDueDate must be a valid date in yyyyMMdd format.");
+                }
             }
         }
 
@@ -198,14 +213,16 @@ public sealed class WsfeRequestValidator
                 throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires an identified recipient CUIT (DocumentType 80 or 86).");
             }
 
-            if (string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
+            if (!FceCreditNoteVoucherTypes.Contains(request.VoucherType) &&
+                (string.IsNullOrWhiteSpace(request.ServicePaymentDueDate) ||
+                 !DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)))
             {
-                throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires ServicePaymentDueDate.");
+                throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires ServicePaymentDueDate in yyyyMMdd format.");
             }
 
-            if (!DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
+            if (FceCreditNoteVoucherTypes.Contains(request.VoucherType) && !string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
             {
-                throw new ArcaValidationException("ServicePaymentDueDate for FCE must be a valid date in yyyyMMdd format.");
+                throw new ArcaValidationException($"FCE credit note VoucherType {request.VoucherType} must not inform ServicePaymentDueDate.");
             }
         }
 
@@ -281,6 +298,88 @@ public sealed class WsfeRequestValidator
             throw new ArcaValidationException($"RecipientVatConditionId {request.RecipientVatConditionId} is not compatible with FCE voucher type {request.VoucherType}. FCE-B variants require a non-RI recipient condition accepted by the official catalog.");
         }
     }
+
+    public void ValidateConsultarComprobanteRequest(ConsultarComprobanteRequest request)
+    {
+        if (request.PointOfSale <= 0)
+        {
+            throw new ArcaValidationException("PointOfSale must be greater than zero.");
+        }
+
+        if (request.VoucherType <= 0)
+        {
+            throw new ArcaValidationException("VoucherType must be greater than zero.");
+        }
+
+        if (request.VoucherNumber <= 0)
+        {
+            throw new ArcaValidationException("VoucherNumber must be greater than zero.");
+        }
+    }
+
+    public void ValidateCaeaPeriodRequest(CaeaPeriodRequest request)
+    {
+        if (request.Period < 200001 || request.Period > 999999)
+        {
+            throw new ArcaValidationException("Period must be in yyyymm format.");
+        }
+
+        var month = request.Period % 100;
+        if (month < 1 || month > 12)
+        {
+            throw new ArcaValidationException("Period month must be between 01 and 12.");
+        }
+
+        if (request.Order is not (1 or 2))
+        {
+            throw new ArcaValidationException("Order must be 1 (primera quincena) or 2 (segunda quincena).");
+        }
+    }
+
+    public void ValidateCaeaRegInformativoRequest(CaeaRegInformativoRequest request)
+    {
+        if (request.PointOfSale <= 0)
+        {
+            throw new ArcaValidationException("PointOfSale must be greater than zero.");
+        }
+
+        if (request.VoucherType <= 0)
+        {
+            throw new ArcaValidationException("VoucherType must be greater than zero.");
+        }
+
+        if (string.IsNullOrWhiteSpace(request.Caea))
+        {
+            throw new ArcaValidationException("CAEA is required.");
+        }
+
+        if (request.Caea.Length != 14 || !request.Caea.All(char.IsDigit))
+        {
+            throw new ArcaValidationException("CAEA must be a 14-digit numeric code.");
+        }
+
+        if (request.Details is null || request.Details.Count == 0)
+        {
+            throw new ArcaValidationException("CAEARegInformativo details must contain at least one voucher.");
+        }
+
+        foreach (var detail in request.Details)
+        {
+            Validate(detail);
+
+            if (detail.PointOfSale != request.PointOfSale)
+            {
+                throw new ArcaValidationException("All CAEARegInformativo details must share the same PointOfSale as the header.");
+            }
+
+            if (detail.VoucherType != request.VoucherType)
+            {
+                throw new ArcaValidationException("All CAEARegInformativo details must share the same VoucherType as the header.");
+            }
+        }
+    }
+
+    private static bool IsFceVoucherType(int voucherType) => FceVoucherTypes.Contains(voucherType);
 
     private static bool IsFceAClassVoucherType(int voucherType) => voucherType is 201 or 202 or 203;
 
