@@ -46,6 +46,9 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWsfev1InvoicingService, Wsfev1InvoicingService>();
         services.AddScoped<ArcaIntegrationClient>();
 
+        // Registrar ArcaClient para que pueda resolverse vía DI
+        services.AddScoped<ArcaClient>();
+
         return services;
     }
 

@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using ARCA_WS.Domain.Errors;
 using ARCA_WS.Domain.Wsfe;
 
@@ -267,38 +266,6 @@ public sealed class WsfeRequestValidator
         }
     }
 
-    public void ValidateOfficialRecipientVatConditionForFce(VoucherRequest request, IReadOnlyList<ParameterItem> officialRecipientVatConditions)
-    {
-        if (!FceVoucherTypes.Contains(request.VoucherType))
-        {
-            return;
-        }
-
-        if (officialRecipientVatConditions is null || officialRecipientVatConditions.Count == 0)
-        {
-            throw new ArcaValidationException("Official recipient VAT condition catalog is required to validate FCE vouchers.");
-        }
-
-        var matchingCondition = officialRecipientVatConditions.FirstOrDefault(item =>
-            int.TryParse(item.Id, NumberStyles.Integer, CultureInfo.InvariantCulture, out var conditionId) &&
-            conditionId == request.RecipientVatConditionId);
-
-        if (matchingCondition is null)
-        {
-            throw new ArcaValidationException($"RecipientVatConditionId {request.RecipientVatConditionId} is not present in the official WSFE recipient VAT condition catalog for FCE voucher type {request.VoucherType}.");
-        }
-
-        if (IsFceAClassVoucherType(request.VoucherType) && !IsFceARecipientVatCondition(matchingCondition.Description))
-        {
-            throw new ArcaValidationException($"RecipientVatConditionId {request.RecipientVatConditionId} is not compatible with FCE voucher type {request.VoucherType}. FCE-A variants require a Responsable Inscripto recipient condition from the official catalog.");
-        }
-
-        if (IsFceBClassVoucherType(request.VoucherType) && !IsFceBRecipientVatCondition(matchingCondition.Description))
-        {
-            throw new ArcaValidationException($"RecipientVatConditionId {request.RecipientVatConditionId} is not compatible with FCE voucher type {request.VoucherType}. FCE-B variants require a non-RI recipient condition accepted by the official catalog.");
-        }
-    }
-
     public void ValidateConsultarComprobanteRequest(ConsultarComprobanteRequest request)
     {
         if (request.PointOfSale <= 0)
@@ -379,46 +346,4 @@ public sealed class WsfeRequestValidator
         }
     }
 
-    private static bool IsFceVoucherType(int voucherType) => FceVoucherTypes.Contains(voucherType);
-
-    private static bool IsFceAClassVoucherType(int voucherType) => voucherType is 201 or 202 or 203;
-
-    private static bool IsFceBClassVoucherType(int voucherType) => voucherType is 206 or 207 or 208;
-
-    private static bool IsFceARecipientVatCondition(string description)
-    {
-        var normalized = Normalize(description);
-        return normalized.Contains("responsable inscripto", StringComparison.Ordinal);
     }
-
-    private static bool IsFceBRecipientVatCondition(string description)
-    {
-        var normalized = Normalize(description);
-        if (normalized.Contains("responsable inscripto", StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        return normalized.Contains("monotrib", StringComparison.Ordinal) ||
-               normalized.Contains("exento", StringComparison.Ordinal) ||
-               normalized.Contains("no alcanzado", StringComparison.Ordinal) ||
-               normalized.Contains("no responsable", StringComparison.Ordinal);
-    }
-
-    private static string Normalize(string value)
-    {
-        var normalized = value.Normalize(NormalizationForm.FormD);
-        Span<char> buffer = stackalloc char[normalized.Length];
-        var index = 0;
-
-        foreach (var character in normalized)
-        {
-            if (CharUnicodeInfo.GetUnicodeCategory(character) != UnicodeCategory.NonSpacingMark)
-            {
-                buffer[index++] = char.ToLowerInvariant(character);
-            }
-        }
-
-        return new string(buffer[..index]).Normalize(NormalizationForm.FormC);
-    }
-}

@@ -7,8 +7,6 @@ using ARCA_WS.Infrastructure.Observability;
 using ARCA_WS.Infrastructure.Resilience;
 using ARCA_WS.Infrastructure.Wsfe;
 using Microsoft.Extensions.Logging;
-using System.Collections.Concurrent;
-using System.Globalization;
 using System.Text;
 
 namespace ARCA_WS.Application.Wsfe;
@@ -43,10 +41,7 @@ public sealed class Wsfev1InvoicingService(
     ArcaMetrics metrics,
     ILogger<Wsfev1InvoicingService> logger) : IWsfev1InvoicingService
 {
-    private const string RecipientVatConditionCatalogName = "FEParamGetCondicionIvaReceptor";
-    private static readonly TimeSpan ParameterCatalogCacheTtl = TimeSpan.FromHours(12);
     private static readonly HashSet<string> KnownAuthenticationErrorCodes = ["600", "601", "602", "10015", "10016", "10017", "WSFE_FAULT"];
-    private readonly ConcurrentDictionary<string, CachedParameterCatalog> parameterCatalogCache = new();
 
     public Task<LastVoucherResult> GetLastAuthorizedVoucherAsync(int pointOfSale, int voucherType, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
     {
@@ -183,7 +178,6 @@ public sealed class Wsfev1InvoicingService(
     public async Task<VoucherAuthorizationResult> AuthorizeVoucherAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default)
     {
         validator.Validate(request);
-        await ValidateOfficialParametersAsync([request], correlationId, cancellationToken);
 
         return await ExecuteOperationAsync("wsfe.authorize-voucher", correlationId, async ct =>
         {
@@ -205,7 +199,6 @@ public sealed class Wsfev1InvoicingService(
     public async Task<IReadOnlyList<VoucherAuthorizationResult>> AuthorizeVouchersAsync(IReadOnlyList<VoucherRequest> requests, string correlationId, CancellationToken cancellationToken = default)
     {
         validator.ValidateBatch(requests);
-        await ValidateOfficialParametersAsync(requests, correlationId, cancellationToken);
 
         return await ExecuteOperationAsync("wsfe.authorize-vouchers", correlationId, async ct =>
         {
@@ -342,57 +335,6 @@ public sealed class Wsfev1InvoicingService(
             }).ToArray();
     }
 
-    private async Task ValidateOfficialParametersAsync(IReadOnlyList<VoucherRequest> requests, string correlationId, CancellationToken cancellationToken)
-    {
-        if (!requests.Any(IsFceVoucherType))
-        {
-            return;
-        }
-
-        var recipientVatConditions = await GetRecipientVatConditionCatalogAsync(correlationId, cancellationToken);
-        foreach (var request in requests.Where(IsFceVoucherType))
-        {
-            validator.ValidateOfficialRecipientVatConditionForFce(request, recipientVatConditions);
-        }
-    }
-
-    private async Task<IReadOnlyList<ParameterItem>> GetRecipientVatConditionCatalogAsync(string correlationId, CancellationToken cancellationToken)
-    {
-        var cacheKey = $"{options.Environment}:{RecipientVatConditionCatalogName}";
-        var now = DateTimeOffset.UtcNow;
-        if (parameterCatalogCache.TryGetValue(cacheKey, out var cached) && cached.ExpiresAt > now)
-        {
-            return cached.Items;
-        }
-
-        try
-        {
-            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: cancellationToken);
-            var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            var items = await wsfeSoapClient.GetParameterCatalogAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, RecipientVatConditionCatalogName, cancellationToken);
-            if (items.Count == 0)
-            {
-                throw new ArcaFunctionalException("WSFE_PARAM_EMPTY", $"WSFE returned an empty catalog for {RecipientVatConditionCatalogName}.") { CorrelationId = correlationId };
-            }
-
-            parameterCatalogCache[cacheKey] = new CachedParameterCatalog(items, now.Add(ParameterCatalogCacheTtl));
-            return items;
-        }
-        catch (Exception ex) when (cached is not null && cached.ExpiresAt > now)
-        {
-            logger.LogWarning(ex, "Falling back to cached WSFE parameter catalog {Catalog} for {Environment}.", RecipientVatConditionCatalogName, options.Environment);
-            return cached.Items;
-        }
-        catch (ArcaException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new ArcaInfrastructureException($"Unable to refresh official WSFE parameter catalog {RecipientVatConditionCatalogName}.", ex) { CorrelationId = correlationId };
-        }
-    }
-
     private async Task<T> ExecuteOperationAsync<T>(string operation, string correlationId, Func<CancellationToken, Task<T>> action, CancellationToken cancellationToken)
     {
         var start = DateTimeOffset.UtcNow;
@@ -423,8 +365,6 @@ public sealed class Wsfev1InvoicingService(
         return exception is HttpRequestException or TimeoutException;
     }
 
-    private static bool IsFceVoucherType(VoucherRequest request) => request.VoucherType is 201 or 202 or 203 or 206 or 207 or 208;
-
     private static bool IsAuthenticationFailure(ArcaFunctionalException exception)
     {
         if (KnownAuthenticationErrorCodes.Contains(exception.Code))
@@ -440,8 +380,6 @@ public sealed class Wsfev1InvoicingService(
                message.Contains("expir", StringComparison.Ordinal) ||
                message.Contains("venc", StringComparison.Ordinal);
     }
-
-    private sealed record CachedParameterCatalog(IReadOnlyList<ParameterItem> Items, DateTimeOffset ExpiresAt);
 
     private sealed record AuthResolution(AuthCredentials Credentials, bool CredentialsIssuedByApi, string CredentialSource);
 }
