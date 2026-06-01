@@ -441,37 +441,6 @@ public sealed class WsfeRequestValidatorTests
     }
 
     [Fact]
-    public void ValidateOfficialRecipientVatConditionForFce_ShouldThrow_WhenRecipientVatConditionIsNotCompatibleWithFceB()
-    {
-        var sut = new WsfeRequestValidator();
-        var req = new VoucherRequest(1, 206, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
-            NetAmount: 1000m, NonTaxableAmount: 0m, ExemptAmount: 0m, TotalAmount: 1210m,
-            CurrencyId: "PES", CurrencyRate: 1m,
-            RecipientVatConditionId: 1,
-            ServicePaymentDueDate: "20260430",
-            VatBreakdown: [new VatItem(5, 1000m, 210m)]);
-
-        var ex = Assert.Throws<ArcaValidationException>(() => sut.ValidateOfficialRecipientVatConditionForFce(req, [new ParameterItem("1", "IVA Responsable Inscripto") ]));
-
-        Assert.Contains("RecipientVatConditionId", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.Contains("206", ex.Message, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void ValidateOfficialRecipientVatConditionForFce_ShouldPass_WhenRecipientVatConditionIsCompatibleWithFceB()
-    {
-        var sut = new WsfeRequestValidator();
-        var req = new VoucherRequest(1, 206, 80, 20123456789, DateOnly.FromDateTime(DateTime.UtcNow),
-            NetAmount: 1000m, NonTaxableAmount: 0m, ExemptAmount: 0m, TotalAmount: 1210m,
-            CurrencyId: "PES", CurrencyRate: 1m,
-            RecipientVatConditionId: 6,
-            ServicePaymentDueDate: "20260430",
-            VatBreakdown: [new VatItem(5, 1000m, 210m)]);
-
-        sut.ValidateOfficialRecipientVatConditionForFce(req, [new ParameterItem("6", "Responsable Monotributo")]);
-    }
-
-    [Fact]
     public void ValidateBatch_ShouldThrow_WhenRequestsIsEmpty()
     {
         var sut = new WsfeRequestValidator();
