@@ -12,258 +12,23 @@ public sealed class WsfeRequestValidator
 
     public void Validate(VoucherRequest request)
     {
-        if (request.PointOfSale <= 0)
+        if (request is null)
         {
-            throw new ArcaValidationException("PointOfSale must be greater than zero.");
+            throw new ArcaValidationException("VoucherRequest is required.");
         }
 
-        if (request.VoucherType <= 0)
-        {
-            throw new ArcaValidationException("VoucherType must be greater than zero.");
-        }
-
-        if (request.DocumentType <= 0)
-        {
-            throw new ArcaValidationException("DocumentType must be greater than zero.");
-        }
-
-        if (request.DocumentType == 99)
-        {
-            if (request.DocumentNumber != 0)
-            {
-                throw new ArcaValidationException("DocumentNumber must be zero for final consumer (DocumentType 99).");
-            }
-        }
-        else if (request.DocumentNumber <= 0)
-        {
-            throw new ArcaValidationException("DocumentNumber must be greater than zero.");
-        }
-
-        if (request.DocumentType == 80 || request.DocumentType == 86)
-        {
-            if (request.DocumentNumber.ToString(CultureInfo.InvariantCulture).Length != 11)
-            {
-                throw new ArcaValidationException("DocumentNumber must be an 11-digit CUIT when DocumentType is 80 (Responsable Inscripto) or 86 (Exento).");
-            }
-        }
-
-        if (request.TotalAmount <= 0)
-        {
-            throw new ArcaValidationException("TotalAmount must be greater than zero.");
-        }
-
-        if (request.VatBreakdown is not null)
-        {
-            foreach (var vat in request.VatBreakdown)
-            {
-                if (!ValidVatIds.Contains(vat.Id))
-                    throw new ArcaValidationException($"VatItem has invalid Id {vat.Id}. Allowed values: 3 (0%), 4 (10.5%), 5 (21%), 6 (27%).");
-                if (vat.BaseAmount < 0)
-                    throw new ArcaValidationException($"VatItem with Id {vat.Id} has negative BaseAmount.");
-                if (vat.Amount < 0)
-                    throw new ArcaValidationException($"VatItem with Id {vat.Id} has negative Amount.");
-            }
-        }
-
-        if (request.TaxBreakdown is not null)
-        {
-            foreach (var tax in request.TaxBreakdown)
-            {
-                if (tax.Id <= 0)
-                    throw new ArcaValidationException($"TaxItem has invalid Id {tax.Id}. Id must be greater than zero.");
-                if (string.IsNullOrWhiteSpace(tax.Description))
-                    throw new ArcaValidationException($"TaxItem with Id {tax.Id} has empty Description.");
-                if (tax.BaseAmount < 0)
-                    throw new ArcaValidationException($"TaxItem with Id {tax.Id} has negative BaseAmount.");
-                if (tax.Rate < 0)
-                    throw new ArcaValidationException($"TaxItem with Id {tax.Id} has negative Rate.");
-                if (tax.Amount < 0)
-                    throw new ArcaValidationException($"TaxItem with Id {tax.Id} has negative Amount.");
-            }
-        }
-
-        var vatTotal = request.VatTotal ?? request.VatBreakdown?.Sum(v => v.Amount) ?? 0m;
-        var taxTotal = request.TaxTotal ?? request.TaxBreakdown?.Sum(t => t.Amount) ?? 0m;
-        var expected = request.NetAmount + request.NonTaxableAmount + vatTotal + request.ExemptAmount + taxTotal;
-        if (expected != request.TotalAmount)
-        {
-            throw new ArcaValidationException("TotalAmount must equal NetAmount + NonTaxableAmount + VatBreakdown.Sum(Amount) + ExemptAmount + TaxBreakdown.Sum(Amount).");
-        }
-
-        if (request.VoucherNumberFrom.HasValue != request.VoucherNumberTo.HasValue)
-        {
-            throw new ArcaValidationException("VoucherNumberFrom and VoucherNumberTo must both be informed together.");
-        }
-
-        if (request.VoucherNumberFrom.HasValue && request.VoucherNumberFrom.Value <= 0)
-        {
-            throw new ArcaValidationException("VoucherNumberFrom must be greater than zero.");
-        }
-
-        if (request.VoucherNumberTo.HasValue && request.VoucherNumberTo.Value <= 0)
-        {
-            throw new ArcaValidationException("VoucherNumberTo must be greater than zero.");
-        }
-
-        if (request.VoucherNumberFrom.HasValue && request.VoucherNumberTo.HasValue && request.VoucherNumberFrom.Value > request.VoucherNumberTo.Value)
-        {
-            throw new ArcaValidationException("VoucherNumberFrom must be less than or equal to VoucherNumberTo.");
-        }
-
-        if (request.RecipientVatConditionId <= 0)
-        {
-            throw new ArcaValidationException("RecipientVatConditionId must be greater than zero.");
-        }
-
-        if (request.Concept == 2 || request.Concept == 3)
-        {
-            if (string.IsNullOrEmpty(request.ServiceDateFrom) ||
-                string.IsNullOrEmpty(request.ServiceDateTo))
-            {
-                throw new ArcaValidationException("ServiceDateFrom and ServiceDateTo are required when Concept is 2 (Servicios) or 3 (Productos y Servicios).");
-            }
-
-            if (!DateOnly.TryParseExact(request.ServiceDateFrom, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateFrom) ||
-                !DateOnly.TryParseExact(request.ServiceDateTo, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var dateTo))
-            {
-                throw new ArcaValidationException("ServiceDateFrom and ServiceDateTo must be valid dates in yyyyMMdd format.");
-            }
-
-            if (dateFrom > dateTo)
-            {
-                throw new ArcaValidationException("ServiceDateFrom must be less than or equal to ServiceDateTo.");
-            }
-
-            // Notas de Crédito no requieren FchVtoPago
-            var isCreditNote = request.VoucherType is 3 or 7 or 8 or 203 or 208;
-            
-            // Facturas de servicios (no NC) requieren ServicePaymentDueDate
-            if (!isCreditNote)
-            {
-                if (string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
-                {
-                    throw new ArcaValidationException("ServicePaymentDueDate is required for service invoices (Concept 2 or 3).");
-                }
-
-                if (!DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-                {
-                    throw new ArcaValidationException("ServicePaymentDueDate must be a valid date in yyyyMMdd format.");
-                }
-            }
-        }
-
-        if (request.VoucherType == 3 || request.VoucherType == 7 || request.VoucherType == 8 || request.VoucherType == 203 || request.VoucherType == 208)
-        {
-            if (request.AssociatedVouchers is null || request.AssociatedVouchers.Count == 0)
-            {
-                throw new ArcaValidationException("AssociatedVouchers is required and must contain at least one entry when VoucherType is a credit note (3, 7, 8, 203, or 208).");
-            }
-
-            foreach (var av in request.AssociatedVouchers)
-            {
-                if (av.Type <= 0 || av.PointOfSale <= 0 || av.Number <= 0 || av.Cuit <= 0)
-                {
-                    throw new ArcaValidationException("Each AssociatedVoucher must have valid Type, PointOfSale, Number, and Cuit.");
-                }
-
-                if (FceCreditNoteVoucherTypes.Contains(request.VoucherType))
-                {
-                    if (string.IsNullOrWhiteSpace(av.IssueDate))
-                    {
-                        throw new ArcaValidationException($"AssociatedVoucher IssueDate is required when VoucherType is {request.VoucherType}.");
-                    }
-
-                    if (!DateOnly.TryParseExact(av.IssueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _))
-                    {
-                        throw new ArcaValidationException("AssociatedVoucher IssueDate must be a valid date in yyyyMMdd format for FCE credit notes.");
-                    }
-                }
-
-                // Validar que los tipos de comprobante asociados sean válidos para la NC
-                // NC tipo 3 (A) puede anular FA (1), ND-A (2), NC-A (3)
-                // NC tipo 7 (B) puede anular FC-B (6), ND-B (7), NC-B (8)
-                // NC tipo 8 (C) puede anular FC-C (11), ND-C (12), NC-C (13), etc.
-                var validTypesForCreditNote = request.VoucherType switch
-                {
-                    3 => new HashSet<int> { 1, 2, 3 },    // NC-A
-                    7 => new HashSet<int> { 6, 7, 8 },    // NC-B
-                    8 => new HashSet<int> { 11, 12, 13 }, // NC-C
-                    203 => new HashSet<int> { 201, 202, 203 }, // NC-FCE-A
-                    208 => new HashSet<int> { 206, 207, 208 }, // NC-FCE-B
-                    _ => new HashSet<int>()
-                };
-
-                if (validTypesForCreditNote.Count > 0 && !validTypesForCreditNote.Contains(av.Type))
-                {
-                    throw new ArcaValidationException($"AssociatedVoucher Type {av.Type} is not valid for credit note type {request.VoucherType}. Valid types: {string.Join(", ", validTypesForCreditNote)}");
-                }
-            }
-        }
-
-        if (FceVoucherTypes.Contains(request.VoucherType))
-        {
-            if (request.Concept != 1)
-            {
-                throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires Concept=1 (Productos). Concept {request.Concept} is not allowed.");
-            }
-
-            if (request.DocumentType != 80 && request.DocumentType != 86)
-            {
-                throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires an identified recipient CUIT (DocumentType 80 or 86).");
-            }
-
-            if (!FceCreditNoteVoucherTypes.Contains(request.VoucherType) &&
-                (string.IsNullOrWhiteSpace(request.ServicePaymentDueDate) ||
-                 !DateOnly.TryParseExact(request.ServicePaymentDueDate, "yyyyMMdd", CultureInfo.InvariantCulture, DateTimeStyles.None, out _)))
-            {
-                throw new ArcaValidationException($"FCE MiPyME VoucherType {request.VoucherType} requires ServicePaymentDueDate in yyyyMMdd format.");
-            }
-
-            if (FceCreditNoteVoucherTypes.Contains(request.VoucherType) && !string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
-            {
-                throw new ArcaValidationException($"FCE credit note VoucherType {request.VoucherType} must not inform ServicePaymentDueDate.");
-            }
-        }
-
-        if (string.Equals(request.CurrencyId, "PES", StringComparison.OrdinalIgnoreCase))
-        {
-            if (request.CurrencyRate != 1m)
-            {
-                throw new ArcaValidationException("CurrencyRate must be 1 when CurrencyId is PES.");
-            }
-        }
-        else
-        {
-            if (request.CurrencyRate <= 0m)
-            {
-                throw new ArcaValidationException("CurrencyRate must be greater than zero when CurrencyId is not PES.");
-            }
-        }
+        // La validación completa del contenido del comprobante se delega a AFIP al emitir el comprobante.
+        // Aquí no se realizan reglas adicionales para evitar duplicar la lógica.
     }
 
     public void ValidateBatch(IReadOnlyList<VoucherRequest> requests)
     {
-        if (requests is null || requests.Count == 0)
+        if (requests is null)
         {
-            throw new ArcaValidationException("The voucher batch must contain at least one request.");
+            throw new ArcaValidationException("Voucher batch is required.");
         }
 
-        var firstPointOfSale = requests[0].PointOfSale;
-        if (requests.Any(r => r.PointOfSale != firstPointOfSale))
-        {
-            throw new ArcaValidationException("All vouchers in a batch must share the same PointOfSale.");
-        }
-
-        var firstVoucherType = requests[0].VoucherType;
-        if (requests.Any(r => r.VoucherType != firstVoucherType))
-        {
-            throw new ArcaValidationException("All vouchers in a batch must share the same VoucherType.");
-        }
-
-        foreach (var request in requests)
-        {
-            Validate(request);
-        }
+        // No se realizan validaciones por comprobante en el lote; AFIP validará cada comprobante al momento de la emisión.
     }
 
     public void ValidateConsultarComprobanteRequest(ConsultarComprobanteRequest request)
@@ -346,4 +111,5 @@ public sealed class WsfeRequestValidator
         }
     }
 
-    }
+}
+

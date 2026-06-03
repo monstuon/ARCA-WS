@@ -290,20 +290,12 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             serviceDatesXml =
                 $"<ar:FchServDesde>{request.ServiceDateFrom}</ar:FchServDesde>" +
                 $"<ar:FchServHasta>{request.ServiceDateTo}</ar:FchServHasta>";
-
-            var isCreditNote = request.VoucherType is 3 or 7 or 8 or 203 or 208;
-
-            if (!isCreditNote && !string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
+             
+            if (!string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
             {
                 serviceDatesXml += $"<ar:FchVtoPago>{request.ServicePaymentDueDate}</ar:FchVtoPago>";
             }
-        }
-        else if (IsFceVoucherType(request.VoucherType) &&
-                 !IsFceCreditNoteVoucherType(request.VoucherType) &&
-                 !string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
-        {
-            serviceDatesXml = $"<ar:FchVtoPago>{request.ServicePaymentDueDate}</ar:FchVtoPago>";
-        }
+        } 
 
         var cbteAsocXml = string.Empty;
         if (request.AssociatedVouchers is { Count: > 0 })
