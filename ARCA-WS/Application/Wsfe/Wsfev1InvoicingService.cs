@@ -21,9 +21,9 @@ public interface IWsfev1InvoicingService
 
     Task<IReadOnlyList<ParameterItem>> GetParameterCatalogAsync(string catalogName, string correlationId, CancellationToken cancellationToken = default);
 
-    Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default);
+    Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
 
-    Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default);
+    Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
 
     Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default);
 
@@ -99,24 +99,60 @@ public sealed class Wsfev1InvoicingService(
         }, cancellationToken);
     }
 
-    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default)
+    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
     {
         return ExecuteOperationAsync("wsfe.get-caea-points", correlationId, async ct =>
         {
-            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            return await wsfeSoapClient.GetCaeaEnabledPointsOfSaleAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, ct);
+            var externalCredentials = ResolveExternalCredentials(token, sign, correlationId);
+
+            if (externalCredentials is not null)
+            {
+                try
+                {
+                    var externalResult = await wsfeSoapClient.GetCaeaEnabledPointsOfSaleAsync(endpoint, externalCredentials.Token, externalCredentials.Sign, options.TaxpayerId, ct);
+                    metrics.RecordCredentialSource("wsfe.get-caea-points", "external");
+                    return externalResult;
+                }
+                catch (ArcaFunctionalException ex) when (IsAuthenticationFailure(ex))
+                {
+                    logger.LogWarning(ex, "External credentials rejected by WSFE in wsfe.get-caea-points. CorrelationId={CorrelationId}. Executing WSAA fallback.", correlationId);
+                }
+            }
+
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            var result = await wsfeSoapClient.GetCaeaEnabledPointsOfSaleAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, ct);
+            metrics.RecordCredentialSource("wsfe.get-caea-points", "wsaa-fallback");
+            return result;
         }, cancellationToken);
     }
 
-    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default)
+    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
     {
         validator.ValidateConsultarComprobanteRequest(request);
         return ExecuteOperationAsync("wsfe.consultar-comprobante", correlationId, async ct =>
         {
-            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            return await wsfeSoapClient.QueryVoucherAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            var externalCredentials = ResolveExternalCredentials(token, sign, correlationId);
+
+            if (externalCredentials is not null)
+            {
+                try
+                {
+                    var externalResult = await wsfeSoapClient.QueryVoucherAsync(endpoint, externalCredentials.Token, externalCredentials.Sign, options.TaxpayerId, request, ct);
+                    metrics.RecordCredentialSource("wsfe.consultar-comprobante", "external");
+                    return externalResult;
+                }
+                catch (ArcaFunctionalException ex) when (IsAuthenticationFailure(ex))
+                {
+                    logger.LogWarning(ex, "External credentials rejected by WSFE in wsfe.consultar-comprobante. CorrelationId={CorrelationId}. Executing WSAA fallback.", correlationId);
+                }
+            }
+
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            var result = await wsfeSoapClient.QueryVoucherAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            metrics.RecordCredentialSource("wsfe.consultar-comprobante", "wsaa-fallback");
+            return result;
         }, cancellationToken);
     }
 
@@ -125,9 +161,27 @@ public sealed class Wsfev1InvoicingService(
         validator.ValidateCaeaPeriodRequest(request);
         return ExecuteOperationAsync("wsfe.caea-consultar", correlationId, async ct =>
         {
-            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            return await wsfeSoapClient.QueryCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            var externalCredentials = ResolveExternalCredentials(request.Token, request.Sign, correlationId);
+
+            if (externalCredentials is not null)
+            {
+                try
+                {
+                    var externalResult = await wsfeSoapClient.QueryCaeaAsync(endpoint, externalCredentials.Token, externalCredentials.Sign, options.TaxpayerId, request, ct);
+                    metrics.RecordCredentialSource("wsfe.caea-consultar", "external");
+                    return externalResult;
+                }
+                catch (ArcaFunctionalException ex) when (IsAuthenticationFailure(ex))
+                {
+                    logger.LogWarning(ex, "External credentials rejected by WSFE in wsfe.caea-consultar. CorrelationId={CorrelationId}. Executing WSAA fallback.", correlationId);
+                }
+            }
+
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            var result = await wsfeSoapClient.QueryCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            metrics.RecordCredentialSource("wsfe.caea-consultar", "wsaa-fallback");
+            return result;
         }, cancellationToken);
     }
 
@@ -136,9 +190,27 @@ public sealed class Wsfev1InvoicingService(
         validator.ValidateCaeaPeriodRequest(request);
         return ExecuteOperationAsync("wsfe.caea-solicitar", correlationId, async ct =>
         {
-            var auth = await authenticationService.GetCredentialsAsync(cancellationToken: ct);
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            return await wsfeSoapClient.RequestCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            var externalCredentials = ResolveExternalCredentials(request.Token, request.Sign, correlationId);
+
+            if (externalCredentials is not null)
+            {
+                try
+                {
+                    var externalResult = await wsfeSoapClient.RequestCaeaAsync(endpoint, externalCredentials.Token, externalCredentials.Sign, options.TaxpayerId, request, ct);
+                    metrics.RecordCredentialSource("wsfe.caea-solicitar", "external");
+                    return externalResult;
+                }
+                catch (ArcaFunctionalException ex) when (IsAuthenticationFailure(ex))
+                {
+                    logger.LogWarning(ex, "External credentials rejected by WSFE in wsfe.caea-solicitar. CorrelationId={CorrelationId}. Executing WSAA fallback.", correlationId);
+                }
+            }
+
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            var result = await wsfeSoapClient.RequestCaeaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, request, ct);
+            metrics.RecordCredentialSource("wsfe.caea-solicitar", "wsaa-fallback");
+            return result;
         }, cancellationToken);
     }
 
@@ -284,19 +356,10 @@ public sealed class Wsfev1InvoicingService(
 
         foreach (var request in requests)
         {
-            var hasToken = !string.IsNullOrWhiteSpace(request.Token);
-            var hasSign = !string.IsNullOrWhiteSpace(request.Sign);
-            if (hasToken != hasSign)
+            var externalCredentials = ResolveExternalCredentials(request.Token, request.Sign, correlationId);
+            if (externalCredentials is not null)
             {
-                throw new ArcaExternalCredentialsException("Token and Sign must be provided together when external credentials are used.")
-                {
-                    CorrelationId = correlationId
-                };
-            }
-
-            if (hasToken && hasSign)
-            {
-                providedCredentials.Add((request.Token!, request.Sign!));
+                providedCredentials.Add((externalCredentials.Token, externalCredentials.Sign));
             }
         }
 
@@ -315,6 +378,26 @@ public sealed class Wsfev1InvoicingService(
         }
 
         return new AuthCredentials(first.Token, first.Sign, DateTimeOffset.MinValue, options.Wsaa.ServiceName, options.Environment.ToString());
+    }
+
+    private AuthCredentials? ResolveExternalCredentials(string? token, string? sign, string correlationId)
+    {
+        var hasToken = !string.IsNullOrWhiteSpace(token);
+        var hasSign = !string.IsNullOrWhiteSpace(sign);
+        if (hasToken != hasSign)
+        {
+            throw new ArcaExternalCredentialsException("Token and Sign must be provided together when external credentials are used.")
+            {
+                CorrelationId = correlationId
+            };
+        }
+
+        if (!hasToken)
+        {
+            return null;
+        }
+
+        return new AuthCredentials(token!, sign!, DateTimeOffset.MinValue, options.Wsaa.ServiceName, options.Environment.ToString());
     }
 
     private static IReadOnlyList<VoucherAuthorizationResult> AttachCredentialMetadata(IReadOnlyList<VoucherAuthorizationResult> results, AuthResolution authResolution)

@@ -17,11 +17,11 @@ public sealed class ArcaIntegrationClient(IWsfev1InvoicingService invoicingServi
     public Task<IReadOnlyList<ParameterItem>> GetParameterCatalogAsync(string catalogName, string correlationId, CancellationToken cancellationToken = default)
         => invoicingService.GetParameterCatalogAsync(catalogName, correlationId, cancellationToken);
 
-    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default)
-        => invoicingService.PuntosHabilitadosCaeaAsync(correlationId, cancellationToken);
+    public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
+        => invoicingService.PuntosHabilitadosCaeaAsync(correlationId, token, sign, cancellationToken);
 
-    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, CancellationToken cancellationToken = default)
-        => invoicingService.ConsultarComprobanteAsync(request, correlationId, cancellationToken);
+    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
+        => invoicingService.ConsultarComprobanteAsync(request, correlationId, token, sign, cancellationToken);
 
     public Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default)
         => invoicingService.CAEAConsultarAsync(request, correlationId, cancellationToken);

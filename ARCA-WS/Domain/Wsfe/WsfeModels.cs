@@ -76,7 +76,11 @@ public sealed record ConsultarComprobanteResult(
     decimal? TotalAmount,
     IReadOnlyList<WsfeError> Errors);
 
-public sealed record CaeaPeriodRequest(int Period, int Order);
+public sealed record CaeaPeriodRequest(
+    int Period,
+    int Order,
+    string? Token = null,
+    string? Sign = null);
 
 public sealed record CaeaResult(
     int Period,

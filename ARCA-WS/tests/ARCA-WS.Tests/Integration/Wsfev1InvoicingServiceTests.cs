@@ -163,6 +163,41 @@ public sealed class Wsfev1InvoicingServiceTests
     }
 
     [Fact]
+    public async Task CAEAConsultarAsync_ShouldUseExternalCredentialsWithoutCallingWsaa()
+    {
+        var auth = new FakeAuthService();
+        var wsfe = new FakeWsfeSoapClient();
+        var service = CreateSut(auth, wsfe);
+
+        var result = await service.CAEAConsultarAsync(new CaeaPeriodRequest(202604, 1, Token: "external-token", Sign: "external-sign"), "corr-caea-consultar-external");
+
+        Assert.Equal(202604, result.Period);
+        Assert.Equal(0, auth.NormalCalls);
+        Assert.Equal(0, auth.ForceRefreshCalls);
+        Assert.Equal("external-token", wsfe.LastQueryCaeaToken);
+        Assert.Equal("external-sign", wsfe.LastQueryCaeaSign);
+    }
+
+    [Fact]
+    public async Task CAEASolicitarAsync_ShouldFallbackToWsaa_WhenExternalCredentialsAreRejected()
+    {
+        var auth = new FakeAuthService();
+        var wsfe = new FakeWsfeSoapClient
+        {
+            ThrowAuthErrorForToken = "bad-token"
+        };
+        var service = CreateSut(auth, wsfe);
+
+        var result = await service.CAEASolicitarAsync(new CaeaPeriodRequest(202604, 1, Token: "bad-token", Sign: "bad-sign"), "corr-caea-solicitar-fallback");
+
+        Assert.Equal(202604, result.Period);
+        Assert.Equal(1, auth.NormalCalls);
+        Assert.Equal(0, auth.ForceRefreshCalls);
+        Assert.Equal("token", wsfe.LastRequestCaeaToken);
+        Assert.Equal("sign", wsfe.LastRequestCaeaSign);
+    }
+
+    [Fact]
     public async Task AuthorizeVoucherAsync_ShouldMapRejectionToFunctionalException()
     {
         var auth = new FakeAuthService();
@@ -378,6 +413,14 @@ public sealed class Wsfev1InvoicingServiceTests
 
         public string? LastAuthorizeSign { get; private set; }
 
+        public string? LastQueryCaeaToken { get; private set; }
+
+        public string? LastQueryCaeaSign { get; private set; }
+
+        public string? LastRequestCaeaToken { get; private set; }
+
+        public string? LastRequestCaeaSign { get; private set; }
+
         public VoucherAuthorizationResult AuthorizationResult { get; set; } = new(true, "123", DateOnly.FromDateTime(DateTime.UtcNow.AddDays(5)), []);
 
         public IReadOnlyList<ParameterItem> ParameterCatalog { get; set; } = [];
@@ -388,11 +431,7 @@ public sealed class Wsfev1InvoicingServiceTests
             AuthorizeCalls++;
             LastAuthorizeToken = token;
             LastAuthorizeSign = sign;
-
-            if (!string.IsNullOrWhiteSpace(ThrowAuthErrorForToken) && string.Equals(token, ThrowAuthErrorForToken, StringComparison.Ordinal))
-            {
-                throw new ArcaFunctionalException("600", "Token expirado");
-            }
+            ThrowIfTokenRejected(token);
 
             return Task.FromResult<IReadOnlyList<VoucherAuthorizationResult>>([AuthorizationResult]);
         }
@@ -426,19 +465,34 @@ public sealed class Wsfev1InvoicingServiceTests
         public Task<CaeaResult> QueryCaeaAsync(string endpoint, string token, string sign, long taxpayerId, CaeaPeriodRequest request, CancellationToken cancellationToken)
         {
             _ = taxpayerId;
+            LastQueryCaeaToken = token;
+            LastQueryCaeaSign = sign;
+            ThrowIfTokenRejected(token);
             return Task.FromResult(new CaeaResult(request.Period, request.Order, "61234567890123", DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)), [], []));
         }
 
         public Task<CaeaResult> RequestCaeaAsync(string endpoint, string token, string sign, long taxpayerId, CaeaPeriodRequest request, CancellationToken cancellationToken)
         {
             _ = taxpayerId;
+            LastRequestCaeaToken = token;
+            LastRequestCaeaSign = sign;
+            ThrowIfTokenRejected(token);
             return Task.FromResult(new CaeaResult(request.Period, request.Order, "69876543210987", DateOnly.FromDateTime(DateTime.UtcNow), DateOnly.FromDateTime(DateTime.UtcNow.AddDays(10)), [], []));
         }
 
         public Task<CaeaRegInformativoResult> RegisterCaeaInformativeAsync(string endpoint, string token, string sign, long taxpayerId, CaeaRegInformativoRequest request, CancellationToken cancellationToken)
         {
             _ = taxpayerId;
+            ThrowIfTokenRejected(token);
             return Task.FromResult(new CaeaRegInformativoResult(request.Caea, [new CaeaRegInformativoDetailResult(1, 1, true, [])], []));
+        }
+
+        private void ThrowIfTokenRejected(string token)
+        {
+            if (!string.IsNullOrWhiteSpace(ThrowAuthErrorForToken) && string.Equals(token, ThrowAuthErrorForToken, StringComparison.Ordinal))
+            {
+                throw new ArcaFunctionalException("600", "Token expirado");
+            }
         }
     }
 }

@@ -248,6 +248,12 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
     }
 
     private static string BuildDetRequest(VoucherRequest request)
+        => BuildDetRequestXml(request, "FECAEDetRequest", caea: null);
+
+    private static string BuildCaeaDetRequest(VoucherRequest request, string caea)
+        => BuildDetRequestXml(request, "FECAEADetRequest", caea);
+
+    private static string BuildDetRequestXml(VoucherRequest request, string elementName, string? caea)
     {
         var safeCurrency = System.Security.SecurityElement.Escape(request.CurrencyId);
 
@@ -290,12 +296,12 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             serviceDatesXml =
                 $"<ar:FchServDesde>{request.ServiceDateFrom}</ar:FchServDesde>" +
                 $"<ar:FchServHasta>{request.ServiceDateTo}</ar:FchServHasta>";
-             
+
             if (!string.IsNullOrWhiteSpace(request.ServicePaymentDueDate))
             {
                 serviceDatesXml += $"<ar:FchVtoPago>{request.ServicePaymentDueDate}</ar:FchVtoPago>";
             }
-        } 
+        }
 
         var cbteAsocXml = string.Empty;
         if (request.AssociatedVouchers is { Count: > 0 })
@@ -326,7 +332,9 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             opcionalesXml = "<ar:Opcionales>" + items + "</ar:Opcionales>";
         }
 
-        return "<ar:FECAEDetRequest>" +
+        var caeaXml = caea is not null ? $"<ar:CAEA>{System.Security.SecurityElement.Escape(caea)}</ar:CAEA>" : string.Empty;
+
+        return $"<ar:{elementName}>" +
                $"<ar:Concepto>{request.Concept}</ar:Concepto>" +
                $"<ar:DocTipo>{request.DocumentType}</ar:DocTipo>" +
                $"<ar:DocNro>{request.DocumentNumber}</ar:DocNro>" +
@@ -343,12 +351,13 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
                serviceDatesXml +
                $"<ar:MonId>{safeCurrency}</ar:MonId>" +
                $"<ar:MonCotiz>{request.CurrencyRate.ToString(CultureInfo.InvariantCulture)}</ar:MonCotiz>" +
+               caeaXml +
                canMisMonExtXml +
                cbteAsocXml +
                ivaXml +
                tributosXml +
                opcionalesXml +
-               "</ar:FECAEDetRequest>";
+               $"</ar:{elementName}>";
     }
 
     private static string BuildParameterCatalogEnvelope(string token, string sign, long taxpayerId, string operationName)
@@ -437,7 +446,7 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
                $"<ar:CbteTipo>{request.VoucherType}</ar:CbteTipo>" +
                "</ar:FeCabReq>" +
                "<ar:FeDetReq>" +
-               string.Concat(request.Details.Select(detail => BuildDetRequest(detail) + $"<ar:CAEA>{safeCaea}</ar:CAEA>")) +
+               string.Concat(request.Details.Select(detail => BuildCaeaDetRequest(detail, safeCaea))) +
                "</ar:FeDetReq>" +
                "</ar:FeCAEARegInfReq>" +
                "</ar:FECAEARegInformativo>" +
@@ -679,7 +688,7 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             }
 
             var details = result.Descendants()
-                .Where(e => e.Name.LocalName is "FECAEARegInfDetResponse" or "FECAEARegInformativoResponse")
+                .Where(e => e.Name.LocalName is "FECAEARegInfDetResponse" or "FECAEADetResponse")
                 .Select(detail =>
                 {
                     var voucherFrom = TryParseInt(detail.Descendants().FirstOrDefault(e => e.Name.LocalName == "CbteDesde")?.Value) ?? 0;
@@ -698,7 +707,13 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
                 })
                 .ToList();
 
-            var caea = result.Descendants().FirstOrDefault(e => e.Name.LocalName == "CAEA")?.Value;
+            var caea = result.Descendants()
+                .FirstOrDefault(e => e.Name.LocalName is "CAEA" or "Caea")?.Value;
+            if (string.IsNullOrWhiteSpace(caea))
+            {
+                caea = null;
+            }
+
             return new CaeaRegInformativoResult(caea, details, []);
         }
         catch (ArcaException)
