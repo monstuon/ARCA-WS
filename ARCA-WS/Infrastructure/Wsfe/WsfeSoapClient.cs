@@ -317,8 +317,8 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             cbteAsocXml = "<ar:CbtesAsoc>" + items + "</ar:CbtesAsoc>";
         }
 
-        var canMisMonExtXml = request.SameCurrencyQuantity.HasValue
-            ? $"<ar:CanMisMonExt>{request.SameCurrencyQuantity.Value}</ar:CanMisMonExt>"
+        var canMisMonExtXml = !string.IsNullOrWhiteSpace(request.SameCurrencyQuantity)
+            ? $"<ar:CanMisMonExt>{System.Security.SecurityElement.Escape(request.SameCurrencyQuantity)}</ar:CanMisMonExt>"
             : string.Empty;
 
         var opcionalesXml = string.Empty;
@@ -333,6 +333,9 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
         }
 
         var caeaXml = caea is not null ? $"<ar:CAEA>{System.Security.SecurityElement.Escape(caea)}</ar:CAEA>" : string.Empty;
+        var cbteFchHsGenXml = !string.IsNullOrWhiteSpace(request.VoucherGenerationDateTime)
+            ? $"<ar:CbteFchHsGen>{System.Security.SecurityElement.Escape(request.VoucherGenerationDateTime)}</ar:CbteFchHsGen>"
+            : string.Empty;
 
         return $"<ar:{elementName}>" +
                $"<ar:Concepto>{request.Concept}</ar:Concepto>" +
@@ -342,6 +345,7 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
                $"<ar:CbteDesde>{voucherFrom}</ar:CbteDesde>" +
                $"<ar:CbteHasta>{voucherTo}</ar:CbteHasta>" +
                $"<ar:CbteFch>{issueDate}</ar:CbteFch>" +
+               cbteFchHsGenXml +
                $"<ar:ImpTotal>{request.TotalAmount.ToString(CultureInfo.InvariantCulture)}</ar:ImpTotal>" +
                $"<ar:ImpTotConc>{request.NonTaxableAmount.ToString(CultureInfo.InvariantCulture)}</ar:ImpTotConc>" +
                $"<ar:ImpNeto>{request.NetAmount.ToString(CultureInfo.InvariantCulture)}</ar:ImpNeto>" +

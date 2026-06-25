@@ -36,9 +36,73 @@ public sealed record VoucherRequest(
     decimal? TaxTotal = null,                                 // ImpTrib explícito; si null, se deriva de TaxBreakdown
     IReadOnlyList<OptionalItem>? Optionals = null,            // Opcionales (e.g. CBU emisor para FCE MiPyME)
     IReadOnlyList<AssociatedVoucherInfo>? AssociatedVouchers = null, // Vínculos (NC puede anular N facturas)
-    int? SameCurrencyQuantity = null,                         // CanMisMonExt: cantidad en moneda extranjera
+    string? SameCurrencyQuantity = null,                      // CanMisMonExt: marca S/N para cancelar en misma moneda extranjera
     string? Token = null,
-    string? Sign = null);
+    string? Sign = null)
+{
+    public string? VoucherGenerationDateTime { get; init; }   // CbteFchHsGen (yyyymmddHHMMss), requerido en ciertos puntos CAEA contingencia
+
+    public VoucherRequest(
+        int PointOfSale,
+        int VoucherType,
+        int DocumentType,
+        long DocumentNumber,
+        DateOnly IssueDate,
+        decimal NetAmount,
+        decimal NonTaxableAmount,
+        decimal ExemptAmount,
+        decimal TotalAmount,
+        string CurrencyId,
+        decimal CurrencyRate,
+        int? VoucherNumberFrom,
+        int? VoucherNumberTo,
+        int RecipientVatConditionId,
+        int Concept,
+        string? ServiceDateFrom,
+        string? ServiceDateTo,
+        string? ServicePaymentDueDate,
+        IReadOnlyList<VatItem>? VatBreakdown,
+        IReadOnlyList<TaxItem>? TaxBreakdown,
+        decimal? VatTotal,
+        decimal? TaxTotal,
+        IReadOnlyList<OptionalItem>? Optionals,
+        IReadOnlyList<AssociatedVoucherInfo>? AssociatedVouchers,
+        string? SameCurrencyQuantity,
+        string? VoucherGenerationDateTime,
+        string? Token = null,
+        string? Sign = null)
+        : this(
+            PointOfSale,
+            VoucherType,
+            DocumentType,
+            DocumentNumber,
+            IssueDate,
+            NetAmount,
+            NonTaxableAmount,
+            ExemptAmount,
+            TotalAmount,
+            CurrencyId,
+            CurrencyRate,
+            VoucherNumberFrom,
+            VoucherNumberTo,
+            RecipientVatConditionId,
+            Concept,
+            ServiceDateFrom,
+            ServiceDateTo,
+            ServicePaymentDueDate,
+            VatBreakdown,
+            TaxBreakdown,
+            VatTotal,
+            TaxTotal,
+            Optionals,
+            AssociatedVouchers,
+            SameCurrencyQuantity,
+            Token,
+            Sign)
+    {
+        this.VoucherGenerationDateTime = VoucherGenerationDateTime;
+    }
+}
 
 public sealed record VoucherAuthorizationResult(
     bool Approved,

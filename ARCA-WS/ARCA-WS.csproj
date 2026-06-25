@@ -7,14 +7,10 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>ARCA.WS.Integration</PackageId>
-    <Version>26.0.15.6</Version>
+    <Version>26.0.15.7</Version>
     <Authors>ARCA-WS Team</Authors>
     <Description>Reusable .NET 8 integration library for ARCA WSAA and WSFEv1.</Description>
   </PropertyGroup>
-
-  <ItemGroup>
-    <Folder Include="Documentacion\" />
-  </ItemGroup>
 
   <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
