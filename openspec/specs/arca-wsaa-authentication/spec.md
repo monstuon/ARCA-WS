@@ -4,7 +4,7 @@
 TBD - created by archiving change wsaa-auth-fallback-token-return. Update Purpose after archive.
 ## Requirements
 ### Requirement: Credential caching and proactive renewal
-The library SHALL support hybrid credential sourcing where credentials can be provided externally per operation and MUST obtain credentials from WSAA on demand when external credentials are not available or are no longer valid.
+The library SHALL support hybrid credential sourcing where credentials can be provided externally per operation and MUST obtain credentials from WSAA on demand when external credentials are not available or are no longer valid. The credential subsystem MUST support resolving WSAA credentials for more than one ARCA service name, including WSFE and `ws_sr_constancia_inscripcion`.
 
 #### Scenario: External credentials are accepted as primary source
 - **WHEN** an upstream consumer provides `Token` and `Sign` for a WSFE operation
@@ -20,7 +20,10 @@ The library SHALL support hybrid credential sourcing where credentials can be pr
 - **THEN** the subsystem MUST issue fresh credentials through WSAA
 - **THEN** the refreshed credentials MUST be returned to the caller pipeline for response propagation
 
----
+#### Scenario: WSAA resolution for constancia service name
+- **WHEN** a WS Constancia operation requires authentication
+- **THEN** the subsystem MUST be able to request WSAA credentials for `ws_sr_constancia_inscripcion`
+- **THEN** credentials for that service MUST be isolated from credentials resolved for other service names
 
 ### Requirement: Non-persistent credential ownership model
 The library MUST keep ERP as the primary durable owner of WSAA credentials and MUST NOT require persistent storage in the API process.
