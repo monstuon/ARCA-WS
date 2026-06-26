@@ -49,8 +49,9 @@ public sealed class WsaaTokenManagerTests
 
         public int ForceRefreshCalls { get; private set; }
 
-        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default, string? serviceNameOverride = null)
         {
+            _ = serviceNameOverride;
             if (forceRefresh)
             {
                 ForceRefreshCalls++;
@@ -64,7 +65,7 @@ public sealed class WsaaTokenManagerTests
 
     private sealed class ThrowingAuthService : IWsaaAuthenticationService
     {
-        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default, string? serviceNameOverride = null)
             => throw new ArcaAuthenticationException("boom");
     }
 }

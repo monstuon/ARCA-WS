@@ -18,6 +18,12 @@ public sealed class ArcaIntegrationOptionsValidator : IValidateOptions<ArcaInteg
             errors.Add("Wsaa:ServiceName is required.");
         }
 
+        if (string.IsNullOrWhiteSpace(options.Endpoints.WsConstanciaInscripcionHomologation) ||
+            string.IsNullOrWhiteSpace(options.Endpoints.WsConstanciaInscripcionProduction))
+        {
+            errors.Add("Endpoints:WsConstanciaInscripcionHomologation and Endpoints:WsConstanciaInscripcionProduction are required.");
+        }
+
         if (options.Resilience.Timeout <= TimeSpan.Zero)
         {
             errors.Add("Resilience:Timeout must be greater than zero.");

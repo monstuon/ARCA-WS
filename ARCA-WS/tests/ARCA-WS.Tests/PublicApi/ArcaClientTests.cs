@@ -86,7 +86,7 @@ public sealed class ArcaClientTests
             return Task.FromResult(new LastVoucherResult(123));
         }
 
-        public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, CancellationToken cancellationToken = default)
+        public Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
             => throw new NotImplementedException();
     }
 }

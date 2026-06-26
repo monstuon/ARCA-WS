@@ -1,5 +1,6 @@
 ﻿using ARCA_WS;
 using ARCA_WS.Application.Auth;
+using ARCA_WS.Application.WSConstanciaInscripcion;
 using ARCA_WS.Configuration;
 using ARCA_WS.Domain.Wsfe;
 using ARCA_WS.PublicApi;
@@ -35,7 +36,9 @@ services.AddArcaIntegration(options =>
         WsaaHomologation = "https://wsaahomo.afip.gov.ar/ws/services/LoginCms",
         WsaaProduction   = "https://wsaa.afip.gov.ar/ws/services/LoginCms",
         WsfeHomologation = "https://wswhomo.afip.gov.ar/wsfev1/service.asmx",
-        WsfeProduction   = "https://servicios1.afip.gov.ar/wsfev1/service.asmx"
+        WsfeProduction   = "https://servicios1.afip.gov.ar/wsfev1/service.asmx",
+        WsConstanciaInscripcionHomologation = "https://awshomo.afip.gov.ar/sr-padron/webservices/personaServiceA5",
+        WsConstanciaInscripcionProduction = "https://aws.afip.gov.ar/sr-padron/webservices/personaServiceA5"
     };
     options.Wsaa = new WsaaOptions
     {
@@ -61,6 +64,7 @@ using var provider = services.BuildServiceProvider();
 var client          = provider.GetRequiredService<ArcaIntegrationClient>();
 var credentialCache = provider.GetRequiredService<ARCA_WS.Application.Auth.CredentialCache>();
 var logger          = provider.GetRequiredService<ILogger<Program>>();
+var constanciaService = provider.GetRequiredService<IWSConstanciaInscripcionService>();
 
 // ── Fechas de servicio: mes calendario actual ───────────────────────────────
 var today        = DateOnly.FromDateTime(DateTime.UtcNow);
@@ -814,6 +818,35 @@ try
 catch (Exception ex)
 {
     logger.LogError(ex, "✗ CF-Lote-2 | Error: {Message}", ex.Message);
+    Console.WriteLine($"  ✗ ERROR {ex.GetType().Name}: {ex.Message}");
+    anyFailed = true;
+}
+
+// ── Escenario 16: Consulta Constancia de Inscripción (WS Constancia) ──────
+Console.WriteLine("\n[WS-Constancia-GetPersona]");
+logger.LogInformation("Iniciando escenario: WS-Constancia-GetPersona");
+try
+{
+    var persona = await constanciaService.GetPersonaAsync(
+        cuit: receiverCuit,
+        correlationId: "ws-constancia-test",
+        token: null,
+        sign: null);
+
+    logger.LogInformation(
+        "✓ WS-Constancia-GetPersona | CUIT {Cuit} | Denominación: {Denominacion} | Estado: {Estado} | Fuente credenciales: {Source}",
+        persona.Cuit, persona.Denominacion, persona.EstadoClave, persona.CredentialSource ?? "n/a");
+
+    Console.WriteLine($"  ✓ CUIT {persona.Cuit}");
+    Console.WriteLine($"    Denominación: {persona.Denominacion}");
+    Console.WriteLine($"    Estado Clave: {persona.EstadoClave}");
+    Console.WriteLine($"    Tipo Persona: {persona.TipoPersona}");
+    Console.WriteLine($"    Impuestos: {string.Join(", ", persona.Impuestos)}");
+    Console.WriteLine($"    Actividades: {string.Join(", ", persona.Actividades)}");
+}
+catch (Exception ex)
+{
+    logger.LogError(ex, "✗ WS-Constancia-GetPersona | Error: {Message}", ex.Message);
     Console.WriteLine($"  ✗ ERROR {ex.GetType().Name}: {ex.Message}");
     anyFailed = true;
 }

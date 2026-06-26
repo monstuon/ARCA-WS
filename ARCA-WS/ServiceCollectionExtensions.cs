@@ -1,12 +1,14 @@
 using System.Security.Authentication;
 using ARCA_WS.Application.Auth;
 using ARCA_WS.Application.Wsfe;
+using ARCA_WS.Application.WSConstanciaInscripcion;
 using ARCA_WS.Configuration;
 using ARCA_WS.Infrastructure.Certificates;
 using ARCA_WS.Infrastructure.Observability;
 using ARCA_WS.Infrastructure.Resilience;
 using ARCA_WS.Infrastructure.Wsaa;
 using ARCA_WS.Infrastructure.Wsfe;
+using ARCA_WS.Infrastructure.WSConstanciaInscripcion;
 using ARCA_WS.PublicApi;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
@@ -36,6 +38,9 @@ public static class ServiceCollectionExtensions
         services.AddHttpClient<IWsfeSoapClient, WsfeSoapClient>()
             .ConfigurePrimaryHttpMessageHandler(sp => CreateArcaHandler(sp.GetRequiredService<ArcaIntegrationOptions>()));
 
+        services.AddHttpClient<IWSConstanciaInscripcionSoapClient, WSConstanciaInscripcionSoapClient>()
+            .ConfigurePrimaryHttpMessageHandler(sp => CreateArcaHandler(sp.GetRequiredService<ArcaIntegrationOptions>()));
+
         services.AddSingleton<TraBuilder>();
         services.AddSingleton<CredentialCache>(_ => new CredentialCache());
         services.AddSingleton<OperationExecutor>(sp => new OperationExecutor(sp.GetRequiredService<ArcaIntegrationOptions>().Resilience));
@@ -44,6 +49,7 @@ public static class ServiceCollectionExtensions
         services.AddScoped<IWsaaAuthenticationService, WsaaAuthenticationService>();
         services.AddScoped<WsfeRequestValidator>();
         services.AddScoped<IWsfev1InvoicingService, Wsfev1InvoicingService>();
+        services.AddScoped<IWSConstanciaInscripcionService, WSConstanciaInscripcionService>();
         services.AddScoped<ArcaIntegrationClient>();
 
         // Registrar ArcaClient para que pueda resolverse vía DI
