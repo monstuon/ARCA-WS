@@ -828,7 +828,7 @@ logger.LogInformation("Iniciando escenario: WS-Constancia-GetPersona");
 try
 {
     var persona = await constanciaService.GetPersonaAsync(
-        cuit: receiverCuit,
+        cuit: issuerCuit,
         correlationId: "ws-constancia-test",
         token: null,
         sign: null);
@@ -837,12 +837,75 @@ try
         "✓ WS-Constancia-GetPersona | CUIT {Cuit} | Denominación: {Denominacion} | Estado: {Estado} | Fuente credenciales: {Source}",
         persona.Cuit, persona.Denominacion, persona.EstadoClave, persona.CredentialSource ?? "n/a");
 
-    Console.WriteLine($"  ✓ CUIT {persona.Cuit}");
-    Console.WriteLine($"    Denominación: {persona.Denominacion}");
-    Console.WriteLine($"    Estado Clave: {persona.EstadoClave}");
-    Console.WriteLine($"    Tipo Persona: {persona.TipoPersona}");
-    Console.WriteLine($"    Impuestos: {string.Join(", ", persona.Impuestos)}");
-    Console.WriteLine($"    Actividades: {string.Join(", ", persona.Actividades)}");
+    Console.WriteLine($"  ✓ CUIT: {persona.Cuit}");
+    Console.WriteLine($"    Denominación: {persona.Denominacion ?? "n/a"}");
+    Console.WriteLine($"    Nombre: {persona.Nombre ?? "n/a"}");
+    Console.WriteLine($"    Apellido: {persona.Apellido ?? "n/a"}");
+    Console.WriteLine($"    Estado Clave: {persona.EstadoClave ?? "n/a"}");
+    Console.WriteLine($"    Tipo Clave: {persona.TipoClave ?? "n/a"}");
+    Console.WriteLine($"    Tipo Persona: {persona.TipoPersona ?? "n/a"}");
+    Console.WriteLine($"    Fecha Contrato Social: {persona.FechaContratoSocial?.ToString("dd/MM/yyyy") ?? "n/a"}");
+    Console.WriteLine($"    Fecha Inscripción: {persona.FechaInscripcion?.ToString("dd/MM/yyyy") ?? "n/a"}");
+    Console.WriteLine($"    Mes Cierre: {persona.MesCierre?.ToString() ?? "n/a"}");
+
+    Console.WriteLine("    --- Clasificación ---");
+    Console.WriteLine($"    ¿Es Responsable Inscripto?: {(persona.EsResponsableInscripto ? "Sí" : "No")}");
+    Console.WriteLine($"    ¿Es Monotributista?: {(persona.EsMonotributista ? "Sí" : "No")}");
+    if (!string.IsNullOrEmpty(persona.MonotributoCategoria))
+    {
+        Console.WriteLine($"    Categoría Monotributo: {persona.MonotributoCategoria}");
+    }
+
+    Console.WriteLine("    --- Datos Generales ---");
+    Console.WriteLine($"    Impuestos: {(persona.Impuestos.Any() ? string.Join(", ", persona.Impuestos) : "Ninguno")}");
+    Console.WriteLine($"    Actividades: {(persona.Actividades.Any() ? string.Join(", ", persona.Actividades) : "Ninguna")}");
+    Console.WriteLine($"    Regímenes: {(persona.Regimenes.Any() ? string.Join(", ", persona.Regimenes) : "Ninguno")}");
+
+    Console.WriteLine($"    Localidad: {persona.Localidad ?? "n/a"}");
+    Console.WriteLine($"    Código de Provincia: {persona.IdProvincia ?? "n/a"}");
+    Console.WriteLine($"    Provincia: {persona.DescriptionProvincia ?? "n/a"}");
+    Console.WriteLine($"    Código Postal: {persona.CodigoPostal ?? "n/a"}");
+    Console.WriteLine($"    Dirección: {persona.Direccion ?? "n/a"}");
+
+    // Bloque Responsable Inscripto (Solo se muestra si tiene datos)
+    if (persona.ResponsableInscriptoImpuestos?.Any() == true || persona.ResponsableInscriptoActividades?.Any() == true || persona.ResponsableInscriptoRegimenes?.Any() == true)
+    {
+        Console.WriteLine("    --- Detalle Responsable Inscripto ---");
+        Console.WriteLine($"      Impuestos RI: {(persona.ResponsableInscriptoImpuestos != null ? string.Join(", ", persona.ResponsableInscriptoImpuestos) : "n/a")}");
+        Console.WriteLine($"      Actividades RI: {(persona.ResponsableInscriptoActividades != null ? string.Join(", ", persona.ResponsableInscriptoActividades) : "n/a")}");
+        Console.WriteLine($"      Regímenes RI: {(persona.ResponsableInscriptoRegimenes != null ? string.Join(", ", persona.ResponsableInscriptoRegimenes) : "n/a")}");
+    }
+
+    // Bloque Monotributo (Solo se muestra si tiene datos)
+    if (persona.MonotributoImpuestos?.Any() == true || persona.MonotributoActividades?.Any() == true || persona.MonotributoRegimenes?.Any() == true)
+    {
+        Console.WriteLine("    --- Detalle Monotributo ---");
+        Console.WriteLine($"      Impuestos Monotributo: {(persona.MonotributoImpuestos != null ? string.Join(", ", persona.MonotributoImpuestos) : "n/a")}");
+        Console.WriteLine($"      Actividades Monotributo: {(persona.MonotributoActividades != null ? string.Join(", ", persona.MonotributoActividades) : "n/a")}");
+        Console.WriteLine($"      Regímenes Monotributo: {(persona.MonotributoRegimenes != null ? string.Join(", ", persona.MonotributoRegimenes) : "n/a")}");
+    }
+
+    Console.WriteLine("    --- Credenciales y API ---");
+    Console.WriteLine($"    ¿Credenciales emitidas por API?: {(persona.CredentialsIssuedByApi ? "Sí" : "No")}");
+    Console.WriteLine($"    Fuente credenciales: {persona.CredentialSource ?? "n/a"}");
+    Console.WriteLine($"    Expiration Time: {persona.ExpirationTime?.ToString("dd/MM/yyyy HH:mm:ss zzz") ?? "n/a"}");
+    Console.WriteLine($"    Token: {(!string.IsNullOrEmpty(persona.Token) ? "Presente" : "n/a")}");
+    Console.WriteLine($"    Sign: {(!string.IsNullOrEmpty(persona.Sign) ? "Presente" : "n/a")}");
+
+    // Bloque de Errores
+    if (persona.Errors.Any())
+    {
+        Console.WriteLine("    ❌ Errores detectados:");
+        foreach (var error in persona.Errors)
+        {
+            Console.WriteLine($"      - [{error.Code}]: {error.Message}");
+        }
+    }
+    else
+    {
+        Console.WriteLine("    ❌ Errores: Ninguno");
+    }
+
 }
 catch (Exception ex)
 {

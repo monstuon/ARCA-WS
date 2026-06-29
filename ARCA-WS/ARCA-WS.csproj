@@ -14,6 +14,8 @@
 
   <ItemGroup>
     <Folder Include="Documentacion\" />
+    <Folder Include="openspec\changes\add-ws-constancia-inscripcion-getpersona-v2\specs\arca-ws-constancia-inscripcion\" />
+    <Folder Include="openspec\changes\add-ws-constancia-inscripcion-getpersona-v2\specs\arca-wsaa-authentication\" />
   </ItemGroup>
 
   <ItemGroup>

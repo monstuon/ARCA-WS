@@ -15,6 +15,24 @@ public sealed record PersonaTaxData(
     string? Sign = null,
     DateTimeOffset? ExpirationTime = null,
     bool CredentialsIssuedByApi = false,
-    string? CredentialSource = null);
+    string? CredentialSource = null,
+    string? Nombre = null,
+    string? Apellido = null,
+    string? TipoClave = null,
+    int? MesCierre = null,
+    bool EsResponsableInscripto = false,
+    bool EsMonotributista = false,
+    IReadOnlyList<string>? ResponsableInscriptoImpuestos = null,
+    IReadOnlyList<string>? ResponsableInscriptoActividades = null,
+    IReadOnlyList<string>? ResponsableInscriptoRegimenes = null,
+    IReadOnlyList<string>? MonotributoImpuestos = null,
+    IReadOnlyList<string>? MonotributoActividades = null,
+    IReadOnlyList<string>? MonotributoRegimenes = null,
+    string? MonotributoCategoria = null,
+    string? Localidad = null,
+    string? IdProvincia = null,
+    string? DescriptionProvincia = null,
+    string? CodigoPostal = null,
+    string? Direccion = null);
 
 public sealed record WsConstanciaError(string Code, string Message);

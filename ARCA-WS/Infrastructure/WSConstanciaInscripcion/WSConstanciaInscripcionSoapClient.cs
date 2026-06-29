@@ -70,9 +70,26 @@ public sealed class WSConstanciaInscripcionSoapClient(HttpClient httpClient, ILo
             }
 
             var cuit = TryParseLong(FindValue(returnNode, "idPersona") ?? FindValue(returnNode, "id") ?? FindValue(returnNode, "cuit")) ?? cuitToQuery;
-            var denominacion = FindValue(returnNode, "denominacion") ?? FindValue(returnNode, "nombre") ?? FindValue(returnNode, "razonSocial");
+            var denominacion = FindValue(returnNode, "denominacion") ?? FindValue(returnNode, "razonSocial") ?? FindValue(returnNode, "nombre");
             var estadoClave = FindValue(returnNode, "estadoClave") ?? FindValue(returnNode, "estado");
             var tipoPersona = FindValue(returnNode, "tipoPersona") ?? FindValue(returnNode, "tipo");
+            var nombre = FindValue(returnNode, "nombre");
+            var apellido = FindValue(returnNode, "apellido");
+            var tipoClave = FindValue(returnNode, "tipoClave");
+            var mesCierre = TryParseInt(FindValue(returnNode, "mesCierre"));
+
+            var impuestos = ParseCatalog(returnNode, "impuesto", "idImpuesto", "descripcionImpuesto", "descripcion");
+            var actividades = ParseCatalog(returnNode, "actividad", "idActividad", "descripcionActividad", "descripcion");
+            var regimenes = ParseCatalog(returnNode, "regimen", "idRegimen", "descripcionRegimen", "descripcion");
+
+            var esMonotributista = IsMonotributista(impuestos, regimenes);
+            var esResponsableInscripto = !esMonotributista && IsResponsableInscripto(impuestos, regimenes);
+
+            var localidad = FindValue(returnNode, "localidad");
+            var idProvincia = FindValue(returnNode, "idProvincia");
+            var descriptionProvincia = FindValue(returnNode, "descripcionProvincia");
+            var codigoPostal = FindValue(returnNode, "codigoPostal");
+            var direccion = FindValue(returnNode, "direccion");
 
             return new PersonaTaxData(
                 Cuit: cuit,
@@ -81,10 +98,32 @@ public sealed class WSConstanciaInscripcionSoapClient(HttpClient httpClient, ILo
                 TipoPersona: tipoPersona,
                 FechaContratoSocial: ParseDate(FindValue(returnNode, "fechaContratoSocial")),
                 FechaInscripcion: ParseDate(FindValue(returnNode, "fechaInscripcion")),
-                Impuestos: ParseCatalog(returnNode, "impuesto", "idImpuesto", "descripcionImpuesto", "descripcion"),
-                Actividades: ParseCatalog(returnNode, "actividad", "idActividad", "descripcionActividad", "descripcion"),
-                Regimenes: ParseCatalog(returnNode, "regimen", "idRegimen", "descripcionRegimen", "descripcion"),
-                Errors: []);
+                Impuestos: impuestos,
+                Actividades: actividades,
+                Regimenes: regimenes,
+                Errors: [],
+                Nombre: nombre,
+                Apellido: apellido,
+                TipoClave: tipoClave,
+                MesCierre: mesCierre,
+                EsResponsableInscripto: esResponsableInscripto,
+                EsMonotributista: esMonotributista,
+                ResponsableInscriptoImpuestos: esResponsableInscripto ? impuestos : [],
+                ResponsableInscriptoActividades: esResponsableInscripto ? actividades : [],
+                ResponsableInscriptoRegimenes: esResponsableInscripto ? regimenes : [],
+                MonotributoImpuestos: esMonotributista ? impuestos : [],
+                MonotributoActividades: esMonotributista ? actividades : [],
+                MonotributoRegimenes: esMonotributista ? regimenes : [],
+                MonotributoCategoria: esMonotributista
+                    ? FindValue(returnNode, "categoriaMonotributo")
+                        ?? FindValue(returnNode, "categoriaMonotrib")
+                        ?? FindValue(returnNode, "descripcionCategoriaMonotributo")
+                    : null,
+                Localidad: localidad,
+                IdProvincia: idProvincia,
+                DescriptionProvincia: descriptionProvincia,
+                CodigoPostal: codigoPostal,
+                Direccion: direccion);
         }
         catch (ArcaException)
         {
@@ -145,6 +184,35 @@ public sealed class WSConstanciaInscripcionSoapClient(HttpClient httpClient, ILo
             .ToArray();
     }
 
+    private static bool IsMonotributista(IReadOnlyList<string> impuestos, IReadOnlyList<string> regimenes)
+        => ContainsAny(impuestos, "MONOTRIB", "REG SIMPLIFICADO") ||
+           ContainsAny(regimenes, "MONOTRIB", "REG SIMPLIFICADO");
+
+    private static bool IsResponsableInscripto(IReadOnlyList<string> impuestos, IReadOnlyList<string> regimenes)
+        => ContainsAny(impuestos, "IVA", "RESPONSABLE INSCRIPTO") ||
+           ContainsAny(regimenes, "RESPONSABLE INSCRIPTO", "REGIMEN GENERAL");
+
+    private static bool ContainsAny(IEnumerable<string> values, params string[] tokens)
+    {
+        foreach (var value in values)
+        {
+            if (string.IsNullOrWhiteSpace(value))
+            {
+                continue;
+            }
+
+            foreach (var token in tokens)
+            {
+                if (value.Contains(token, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private static string? FindValue(XContainer root, string localName)
     {
         return root.Descendants()
@@ -155,6 +223,9 @@ public sealed class WSConstanciaInscripcionSoapClient(HttpClient httpClient, ILo
 
     private static long? TryParseLong(string? value)
         => long.TryParse(value, out var parsed) ? parsed : null;
+
+    private static int? TryParseInt(string? value)
+        => int.TryParse(value, out var parsed) ? parsed : null;
 
     private static DateOnly? ParseDate(string? value)
     {
