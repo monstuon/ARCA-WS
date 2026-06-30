@@ -647,11 +647,11 @@ public sealed class WsfeSoapClientTests
             VoucherNumberFrom: 37,
             VoucherNumberTo: 37,
             VatBreakdown: [new VatItem(5, 82.64m, 17.36m)],
-            SameCurrencyQuantity: 1);
+            SameCurrencyQuantity: "S");
 
         await sut.AuthorizeVoucherAsync("https://wsfe-homo", "tok", "sig", 23296988839, [request], CancellationToken.None);
 
-        Assert.Contains("<ar:CanMisMonExt>1</ar:CanMisMonExt>", handler.LastBody!, StringComparison.Ordinal);
+        Assert.Contains("<ar:CanMisMonExt>S</ar:CanMisMonExt>", handler.LastBody!, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -977,6 +977,46 @@ public sealed class WsfeSoapClientTests
         Assert.Single(result.Details);
         Assert.True(result.Details[0].Accepted);
         Assert.Equal(101, result.Details[0].VoucherFrom);
+    }
+
+    [Fact]
+    public async Task RegisterCaeaInformativeAsync_ShouldMapCbteFchHsGen_WhenVoucherGenerationDateTimeIsProvided()
+    {
+        var handler = new FakeHttpMessageHandler(_ =>
+            Task.FromResult(new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent(BuildCaeaRegInformativoSoap(), Encoding.UTF8, "text/xml")
+            }));
+        var sut = new WsfeSoapClient(new HttpClient(handler), NullLogger<WsfeSoapClient>.Instance);
+
+        var detail = new VoucherRequest(
+            PointOfSale: 1,
+            VoucherType: 6,
+            DocumentType: 99,
+            DocumentNumber: 0,
+            IssueDate: new DateOnly(2026, 4, 15),
+            NetAmount: 826.45m,
+            NonTaxableAmount: 0m,
+            ExemptAmount: 0m,
+            TotalAmount: 1000m,
+            CurrencyId: "PES",
+            CurrencyRate: 1m,
+            VoucherNumberFrom: 102,
+            VoucherNumberTo: 102,
+            VatBreakdown: [new VatItem(5, 826.45m, 173.55m)])
+        {
+            VoucherGenerationDateTime = "20260415123045"
+        };
+
+        await sut.RegisterCaeaInformativeAsync(
+            "https://wsfe-homo",
+            "tok",
+            "sig",
+            23296988839,
+            new CaeaRegInformativoRequest(1, 6, "61234567890123", [detail]),
+            CancellationToken.None);
+
+        Assert.Contains("<ar:CbteFchHsGen>20260415123045</ar:CbteFchHsGen>", handler.LastBody!, StringComparison.Ordinal);
     }
 
     private static string BuildApprovedBatchSoap()
