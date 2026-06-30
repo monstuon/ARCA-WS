@@ -42,7 +42,11 @@ public static class ServiceCollectionExtensions
             .ConfigurePrimaryHttpMessageHandler(sp => CreateArcaHandler(sp.GetRequiredService<ArcaIntegrationOptions>()));
 
         services.AddSingleton<TraBuilder>();
-        services.AddSingleton<CredentialCache>(_ => new CredentialCache());
+        services.AddSingleton<CredentialCache>(sp =>
+        {
+            var options = sp.GetRequiredService<ArcaIntegrationOptions>();
+            return new CredentialCache(options.Wsaa.TokenCacheFilePath);
+        });
         services.AddSingleton<OperationExecutor>(sp => new OperationExecutor(sp.GetRequiredService<ArcaIntegrationOptions>().Resilience));
         services.AddSingleton<ArcaMetrics>();
 
