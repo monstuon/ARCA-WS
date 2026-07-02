@@ -1,9 +1,11 @@
 using ARCA_WS.Application.Wsfe;
+using ARCA_WS.Application.WSConstanciaInscripcion;
+using ARCA_WS.Domain.WSConstanciaInscripcion;
 using ARCA_WS.Domain.Wsfe;
 
 namespace ARCA_WS.PublicApi;
 
-public sealed class ArcaIntegrationClient(IWsfev1InvoicingService invoicingService)
+public sealed class ArcaIntegrationClient(IWsfev1InvoicingService invoicingService, IWSConstanciaInscripcionService wsConstanciaInscripcionService)
 {
     public Task<LastVoucherResult> GetLastAuthorizedVoucherAsync(int pointOfSale, int voucherType, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
         => invoicingService.GetLastAuthorizedVoucherAsync(pointOfSale, voucherType, correlationId, token, sign, cancellationToken);
@@ -31,4 +33,7 @@ public sealed class ArcaIntegrationClient(IWsfev1InvoicingService invoicingServi
 
     public Task<CaeaRegInformativoResult> CAEARegInformativoAsync(CaeaRegInformativoRequest request, string correlationId, CancellationToken cancellationToken = default)
         => invoicingService.CAEARegInformativoAsync(request, correlationId, cancellationToken);
+
+    public Task<PersonaTaxData> GetPersona(long cuit, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
+        => wsConstanciaInscripcionService.GetPersonaAsync(cuit, correlationId, token, sign, cancellationToken);
 }

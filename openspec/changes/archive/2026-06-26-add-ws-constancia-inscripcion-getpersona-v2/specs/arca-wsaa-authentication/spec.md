@@ -1,8 +1,5 @@
-# arca-wsaa-authentication Specification
+## MODIFIED Requirements
 
-## Purpose
-TBD - created by archiving change wsaa-auth-fallback-token-return. Update Purpose after archive.
-## Requirements
 ### Requirement: Credential caching and proactive renewal
 The library SHALL support hybrid credential sourcing where credentials can be provided externally per operation and MUST obtain credentials from WSAA on demand when external credentials are not available or are no longer valid. The credential subsystem MUST support resolving WSAA credentials for more than one ARCA service name, including WSFE and `ws_sr_constancia_inscripcion`.
 
@@ -24,17 +21,3 @@ The library SHALL support hybrid credential sourcing where credentials can be pr
 - **WHEN** a WS Constancia operation requires authentication
 - **THEN** the subsystem MUST be able to request WSAA credentials for `ws_sr_constancia_inscripcion`
 - **THEN** credentials for that service MUST be isolated from credentials resolved for other service names
-
-### Requirement: Non-persistent credential ownership model
-The library MUST keep ERP as the primary durable owner of WSAA credentials and MUST NOT require persistent storage in the API process.
-
-#### Scenario: API avoids durable credential persistence
-- **WHEN** the authentication subsystem issues or refreshes credentials for an operation
-- **THEN** credentials MUST be exposed to the caller pipeline for outbound response usage
-- **THEN** the API MUST NOT require writing those credentials to database or distributed cache
-
-#### Scenario: In-memory cache remains optional optimization
-- **WHEN** short-term in-memory cache is enabled for the authentication subsystem
-- **THEN** it MUST be treated only as local optimization to reduce duplicate WSAA calls
-- **THEN** correctness MUST NOT depend on cross-instance token synchronization
-

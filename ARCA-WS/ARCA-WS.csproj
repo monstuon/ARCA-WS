@@ -13,6 +13,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Folder Include="Documentacion\" />
+    <Folder Include="openspec\changes\add-ws-constancia-inscripcion-getpersona-v2\specs\arca-ws-constancia-inscripcion\" />
+    <Folder Include="openspec\changes\add-ws-constancia-inscripcion-getpersona-v2\specs\arca-wsaa-authentication\" />
+  </ItemGroup>
+
+  <ItemGroup>
     <Compile Remove="tests\**\*.cs" />
     <Compile Remove="samples\**\*.cs" />
     <None Remove="tests\**\*" />
@@ -25,6 +31,12 @@
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="8.0.2" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="8.0.2" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="8.0.1" />
+  </ItemGroup>
+  
+  <ItemGroup>
+    <None Include="Certificado\isfhomo.p12">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
   </ItemGroup>
 
 </Project>

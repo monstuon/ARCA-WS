@@ -43,11 +43,20 @@ public sealed class EndpointOptions
     [Required]
     public string WsfeProduction { get; set; } = string.Empty;
 
+    [Required]
+    public string WsConstanciaInscripcionHomologation { get; set; } = string.Empty;
+
+    [Required]
+    public string WsConstanciaInscripcionProduction { get; set; } = string.Empty;
+
     public string GetWsaa(EnvironmentProfile profile) =>
         profile == EnvironmentProfile.Production ? WsaaProduction : WsaaHomologation;
 
     public string GetWsfe(EnvironmentProfile profile) =>
         profile == EnvironmentProfile.Production ? WsfeProduction : WsfeHomologation;
+
+    public string GetWsConstancia(EnvironmentProfile profile) =>
+        profile == EnvironmentProfile.Production ? WsConstanciaInscripcionProduction : WsConstanciaInscripcionHomologation;
 }
 
 public sealed class WsaaOptions

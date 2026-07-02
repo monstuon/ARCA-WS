@@ -383,8 +383,9 @@ public sealed class Wsfev1InvoicingServiceTests
 
         public bool FailForceRefresh { get; set; }
 
-        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default)
+        public Task<AuthCredentials> GetCredentialsAsync(bool forceRefresh = false, CancellationToken cancellationToken = default, string? serviceNameOverride = null)
         {
+            _ = serviceNameOverride;
             if (forceRefresh)
             {
                 ForceRefreshCalls++;

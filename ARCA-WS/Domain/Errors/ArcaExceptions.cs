@@ -26,6 +26,19 @@ public sealed class ArcaAuthenticationException : ArcaException
     }
 }
 
+/// <summary>
+/// Se produce cuando WSAA rechaza un loginCms porque ya existe un Ticket de Acceso (TA)
+/// vigente para el mismo certificado + servicio (fault coe.alreadyAuthenticated).
+/// No es un fallo de autenticación real: el TA existe, solo que en otro lugar
+/// (otro proceso, o una corrida anterior cuyo caché en memoria se perdió).
+/// </summary>
+public sealed class ArcaTokenAlreadyExistsException : ArcaException
+{
+    public ArcaTokenAlreadyExistsException(string message) : base(message)
+    {
+    }
+}
+
 public sealed class ArcaExternalCredentialsException : ArcaException
 {
     public ArcaExternalCredentialsException(string message)
