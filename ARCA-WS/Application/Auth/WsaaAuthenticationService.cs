@@ -37,31 +37,15 @@ public sealed class WsaaAuthenticationService(
         {
             try
             {
-                return await LoginOnceAsync();
-            }
-            catch (ArcaTokenAlreadyExistsException) when (!forceRefresh)
-            {
-                // AFIP ya tiene un TA vigente que nosotros no tenemos cacheado
-                // (ej: caché en disco vacío/corrupto, o corrida concurrente).
-                // No hay forma de "recuperar" ese TA via WSAA; lo único razonable
-                // es esperar un poco y reintentar una vez, por si el otro proceso
-                // que lo emitió ya lo persistió a disco.
-                logger.LogWarning(
-                    "WSAA reporta TA ya existente para {Service}; reintentando lectura de caché en 2s.",
-                    serviceName);
+                var unsignedTra = traBuilder.BuildUnsignedTra(serviceName, options.Wsaa.TimestampToleranceSeconds);
+                var certificate = certificateProvider.GetCertificate();
+                var cms = traBuilder.SignTra(unsignedTra, certificate);
+                var endpoint = options.Endpoints.GetWsaa(options.Environment);
+                var login = await wsaaSoapClient.LoginCmsAsync(endpoint, cms, cancellationToken);
 
-                await Task.Delay(TimeSpan.FromSeconds(2), cancellationToken);
+                logger.LogInformation("WSAA credentials issued for service {Service} expiring at {Expiration}", serviceName, login.Expiration);
 
-                if (credentialCache.TryGet(cacheKey, DateTimeOffset.UtcNow, window, out var cachedAfterWait)
-                    && cachedAfterWait is not null)
-                {
-                    return cachedAfterWait;
-                }
-
-                // Seguimos sin token utilizable: no hay nada más que hacer del lado
-                // del cliente. Re-lanzamos para que el llamador decida (loggear y
-                // fallar ese escenario puntual, sin tirar abajo todo el proceso).
-                throw;
+                return new AuthCredentials(login.Token, login.Sign, login.Expiration, serviceName, options.Environment.ToString());
             }
             catch (ArcaException)
             {
@@ -71,19 +55,6 @@ public sealed class WsaaAuthenticationService(
             {
                 throw new ArcaAuthenticationException("Failed to obtain WSAA credentials.", ex);
             }
-        }
-
-        async Task<AuthCredentials> LoginOnceAsync()
-        {
-            var unsignedTra = traBuilder.BuildUnsignedTra(serviceName, options.Wsaa.TimestampToleranceSeconds);
-            var certificate = certificateProvider.GetCertificate();
-            var cms = traBuilder.SignTra(unsignedTra, certificate);
-            var endpoint = options.Endpoints.GetWsaa(options.Environment);
-            var login = await wsaaSoapClient.LoginCmsAsync(endpoint, cms, cancellationToken);
-
-            logger.LogInformation("WSAA credentials issued for service {Service} expiring at {Expiration}", serviceName, login.Expiration);
-
-            return new AuthCredentials(login.Token, login.Sign, login.Expiration, serviceName, options.Environment.ToString());
         }
     }
 }

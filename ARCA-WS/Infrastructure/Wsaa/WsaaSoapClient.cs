@@ -31,7 +31,7 @@ public sealed class WsaaSoapClient(HttpClient httpClient, ILogger<WsaaSoapClient
 
             if (body.Contains("coe.alreadyAuthenticated"))
             {
-                throw new ArcaTokenAlreadyExistsException(
+                throw new ArcaAuthenticationException(
                     "WSAA ya tiene un TA v\u00e1lido para este certificado y servicio. " +
                     "Configure Wsaa:TokenCacheFilePath para persistir el token entre reinicios del proceso.");
             }
