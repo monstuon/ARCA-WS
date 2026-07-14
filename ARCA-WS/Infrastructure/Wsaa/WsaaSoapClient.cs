@@ -27,16 +27,29 @@ public sealed class WsaaSoapClient(HttpClient httpClient, ILogger<WsaaSoapClient
         if (!response.IsSuccessStatusCode)
         {
             logger.LogError("WSAA loginCms failed. Status: {StatusCode}, Body: {ResponseBody}",
-                (int)response.StatusCode, body.Substring(0, Math.Min(500, body.Length)));
+                (int)response.StatusCode,
+                body.Substring(0, Math.Min(500, body.Length)));
 
             if (body.Contains("coe.alreadyAuthenticated"))
             {
                 throw new ArcaAuthenticationException(
-                    "WSAA ya tiene un TA v\u00e1lido para este certificado y servicio. " +
-                    "Configure Wsaa:TokenCacheFilePath para persistir el token entre reinicios del proceso.");
+                    "WSAA ya tiene un TA valido para este certificado y servicio.");
             }
 
-            throw new ArcaAuthenticationException($"WSAA loginCms failed with status {(int)response.StatusCode}.");
+            var inicio = body.IndexOf("<faultstring>");
+            var fin = body.IndexOf("</faultstring>");
+
+            if (inicio >= 0 && fin > inicio)
+            {
+                var mensaje = System.Net.WebUtility.HtmlDecode(
+                    body.Substring(inicio + "<faultstring>".Length, fin - inicio - "<faultstring>".Length));
+
+                throw new ArcaAuthenticationException(
+                    $"WSAA loginCms failed with status {(int)response.StatusCode}. {mensaje}");
+            }
+
+            throw new ArcaAuthenticationException(
+                $"WSAA loginCms failed with status {(int)response.StatusCode}.");
         }
 
         return ParseLoginResponse(body);

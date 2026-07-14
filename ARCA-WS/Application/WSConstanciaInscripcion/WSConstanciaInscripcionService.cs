@@ -63,7 +63,7 @@ public sealed class WSConstanciaInscripcionService(
                 }
             }
 
-            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct, serviceNameOverride: WsaaServiceName);
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
             var result = await wsConstanciaSoapClient.GetPersonaAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, cuit, ct);
             metrics.RecordCredentialSource("ws-constancia.get-persona", "wsaa-fallback");
 
