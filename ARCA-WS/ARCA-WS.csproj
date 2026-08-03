@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <GeneratePackageOnBuild>false</GeneratePackageOnBuild>
     <PackageId>ARCA.WS.Integration</PackageId>
-    <Version>26.0.18.1</Version>
+    <Version>26.0.18.2</Version>
     <Authors>ARCA-WS Team</Authors>
     <Description>Reusable .NET 8 integration library for ARCA WSAA and WSFEv1.</Description>
   </PropertyGroup>
