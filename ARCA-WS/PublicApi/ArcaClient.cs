@@ -5,8 +5,8 @@ namespace ARCA_WS.PublicApi;
 
 public sealed class ArcaClient(IWsfev1InvoicingService invoicingService)
 {
-    public Task<VoucherAuthorizationResult> AutorizarFacturaAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default)
-        => invoicingService.AuthorizeVoucherAsync(request, correlationId, cancellationToken);
+    public Task<VoucherAuthorizationResult> AutorizarFacturaAsync(VoucherRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
+        => invoicingService.AuthorizeVoucherAsync(request, correlationId, cancellationToken, token, sign);
 
     public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
         => invoicingService.ConsultarComprobanteAsync(request, correlationId, token, sign, cancellationToken);

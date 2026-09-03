@@ -15,7 +15,7 @@ public interface IWsfev1InvoicingService
 {
     Task<LastVoucherResult> GetLastAuthorizedVoucherAsync(int pointOfSale, int voucherType, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
 
-    Task<VoucherAuthorizationResult> AuthorizeVoucherAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default);
+    Task<VoucherAuthorizationResult> AuthorizeVoucherAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default, string? token = null, string? sign = null);
 
     Task<IReadOnlyList<VoucherAuthorizationResult>> AuthorizeVouchersAsync(IReadOnlyList<VoucherRequest> requests, string correlationId, CancellationToken cancellationToken = default);
 
@@ -247,14 +247,14 @@ public sealed class Wsfev1InvoicingService(
         }, cancellationToken);
     }
 
-    public async Task<VoucherAuthorizationResult> AuthorizeVoucherAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default)
+    public async Task<VoucherAuthorizationResult> AuthorizeVoucherAsync(VoucherRequest request, string correlationId, CancellationToken cancellationToken = default, string? token = null, string? sign = null)
     {
         validator.Validate(request);
 
         return await ExecuteOperationAsync("wsfe.authorize-voucher", correlationId, async ct =>
         {
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            var results = await AuthorizeWithResolvedCredentialsAsync("wsfe.authorize-voucher", endpoint, [request], correlationId, ct);
+            var results = await AuthorizeWithResolvedCredentialsAsync("wsfe.authorize-voucher", endpoint, [request], correlationId, token, sign, ct);
             var result = results[0];
             if (!result.Approved)
             {
@@ -275,7 +275,7 @@ public sealed class Wsfev1InvoicingService(
         return await ExecuteOperationAsync("wsfe.authorize-vouchers", correlationId, async ct =>
         {
             var endpoint = options.Endpoints.GetWsfe(options.Environment);
-            return await AuthorizeWithResolvedCredentialsAsync("wsfe.authorize-vouchers", endpoint, requests, correlationId, ct);
+            return await AuthorizeWithResolvedCredentialsAsync("wsfe.authorize-vouchers", endpoint, requests, correlationId, null, null, ct);
         }, cancellationToken);
     }
 
@@ -284,9 +284,11 @@ public sealed class Wsfev1InvoicingService(
         string endpoint,
         IReadOnlyList<VoucherRequest> requests,
         string correlationId,
+        string? token,
+        string? sign,
         CancellationToken cancellationToken)
     {
-        var requestedExternalCredentials = ResolveExternalCredentials(requests, correlationId);
+        var requestedExternalCredentials = ResolveExternalCredentials(token, sign, correlationId);
         var authResolution = requestedExternalCredentials is not null
             ? new AuthResolution(requestedExternalCredentials, CredentialsIssuedByApi: false, CredentialSource: "external")
             : await GetApiAuthResolutionAsync(forceRefresh: false, correlationId, cancellationToken);
