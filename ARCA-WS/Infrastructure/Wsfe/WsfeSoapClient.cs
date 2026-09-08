@@ -100,7 +100,7 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
         return ParsePointsOfSaleResponse(body);
     }
 
-    public async Task<ConsultarComprobanteResult> QueryVoucherAsync(string endpoint, string token, string sign, long taxpayerId, ConsultarComprobanteRequest request, CancellationToken cancellationToken)
+    public async Task<string> QueryVoucherAsync(string endpoint, string token, string sign, long taxpayerId, ConsultarComprobanteRequest request, CancellationToken cancellationToken)
     {
         const string operationName = "FECompConsultar";
         var envelope = BuildQueryVoucherEnvelope(token, sign, taxpayerId, request);
@@ -565,53 +565,7 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
         }
     }
 
-    private static ConsultarComprobanteResult ParseQueryVoucherResponse(string soapResponse)
-    {
-        try
-        {
-            var doc = XDocument.Parse(soapResponse);
-            ThrowIfSoapFault(doc);
-
-            var result = doc.Descendants().FirstOrDefault(e => e.Name.LocalName == "FECompConsultarResult");
-            if (result is null)
-            {
-                throw new ArcaInfrastructureException("WSFE FECompConsultar response does not contain FECompConsultarResult.");
-            }
-
-            var errors = ParseWsfeErrors(result).ToList();
-            var resultGet = result.Descendants().FirstOrDefault(e => e.Name.LocalName == "ResultGet");
-            if (resultGet is null)
-            {
-                if (errors.Count > 0)
-                {
-                    throw new ArcaFunctionalException(errors[0].Code, errors[0].Message);
-                }
-
-                return new ConsultarComprobanteResult(false, null, null, null, null, null, null, null, errors);
-            }
-
-            var status = resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "Resultado")?.Value;
-            var cae = resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "CodAutorizacion")?.Value
-                      ?? resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "CAE")?.Value;
-
-            var caeExpiration = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName is "FchVto" or "CAEFchVto")?.Value);
-            var issueDate = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "CbteFch")?.Value);
-
-            var docType = TryParseInt(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "DocTipo")?.Value);
-            var docNumber = TryParseLong(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "DocNro")?.Value);
-            var totalAmount = TryParseDecimal(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "ImpTotal")?.Value);
-
-            return new ConsultarComprobanteResult(true, status, cae, caeExpiration, issueDate, docType, docNumber, totalAmount, errors);
-        }
-        catch (ArcaException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            throw new ArcaInfrastructureException("Failed to parse WSFE FECompConsultar SOAP response.", ex);
-        }
-    }
+    private static string ParseQueryVoucherResponse(string soapResponse) => soapResponse;
 
     private static CaeaResult ParseCaeaResponse(string soapResponse, string resultNodeName)
     {

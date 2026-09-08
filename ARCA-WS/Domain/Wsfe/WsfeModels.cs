@@ -129,17 +129,6 @@ public sealed record PuntosHabilitadosCaeaItem(int PointOfSale, string? Emission
 
 public sealed record ConsultarComprobanteRequest(int PointOfSale, int VoucherType, long VoucherNumber);
 
-public sealed record ConsultarComprobanteResult(
-    bool Found,
-    string? Status,
-    string? Cae,
-    DateOnly? CaeExpiration,
-    DateOnly? IssueDate,
-    int? DocumentType,
-    long? DocumentNumber,
-    decimal? TotalAmount,
-    IReadOnlyList<WsfeError> Errors);
-
 public sealed record CaeaPeriodRequest(
     int Period,
     int Order,

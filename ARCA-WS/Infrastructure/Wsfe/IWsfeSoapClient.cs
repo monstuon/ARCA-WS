@@ -12,7 +12,7 @@ public interface IWsfeSoapClient
 
     Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> GetCaeaEnabledPointsOfSaleAsync(string endpoint, string token, string sign, long taxpayerId, CancellationToken cancellationToken);
 
-    Task<ConsultarComprobanteResult> QueryVoucherAsync(string endpoint, string token, string sign, long taxpayerId, ConsultarComprobanteRequest request, CancellationToken cancellationToken);
+    Task<string> QueryVoucherAsync(string endpoint, string token, string sign, long taxpayerId, ConsultarComprobanteRequest request, CancellationToken cancellationToken);
 
     Task<CaeaResult> QueryCaeaAsync(string endpoint, string token, string sign, long taxpayerId, CaeaPeriodRequest request, CancellationToken cancellationToken);
 

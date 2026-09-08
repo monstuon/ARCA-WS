@@ -23,7 +23,7 @@ public interface IWsfev1InvoicingService
 
     Task<IReadOnlyList<PuntosHabilitadosCaeaItem>> PuntosHabilitadosCaeaAsync(string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
 
-    Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
+    Task<string> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default);
 
     Task<CaeaResult> CAEAConsultarAsync(CaeaPeriodRequest request, string correlationId, CancellationToken cancellationToken = default);
 
@@ -127,7 +127,7 @@ public sealed class Wsfev1InvoicingService(
         }, cancellationToken);
     }
 
-    public Task<ConsultarComprobanteResult> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
+    public Task<string> ConsultarComprobanteAsync(ConsultarComprobanteRequest request, string correlationId, string? token = null, string? sign = null, CancellationToken cancellationToken = default)
     {
         validator.ValidateConsultarComprobanteRequest(request);
         return ExecuteOperationAsync("wsfe.consultar-comprobante", correlationId, async ct =>
