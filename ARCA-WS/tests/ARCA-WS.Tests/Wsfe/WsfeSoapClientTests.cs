@@ -917,6 +917,10 @@ public sealed class WsfeSoapClientTests
         Assert.Equal(202604, result.Period);
         Assert.Equal(1, result.Order);
         Assert.Equal("61234567890123", result.Caea);
+        Assert.Equal(new DateOnly(2026, 4, 1), result.ProcessDate);
+        Assert.Equal(new DateOnly(2026, 4, 1), result.ValidFrom);
+        Assert.Equal(new DateOnly(2026, 4, 15), result.ValidTo);
+        Assert.Equal(new DateOnly(2026, 4, 15), result.InformationDueDate);
     }
 
     [Fact]
@@ -936,6 +940,10 @@ public sealed class WsfeSoapClientTests
         Assert.Equal(202604, result.Period);
         Assert.Equal(2, result.Order);
         Assert.Equal("69876543210987", result.Caea);
+        Assert.Equal(new DateOnly(2026, 4, 16), result.ProcessDate);
+        Assert.Equal(new DateOnly(2026, 4, 16), result.ValidFrom);
+        Assert.Equal(new DateOnly(2026, 4, 30), result.ValidTo);
+        Assert.Equal(new DateOnly(2026, 4, 30), result.InformationDueDate);
     }
 
     [Fact]
@@ -1092,6 +1100,8 @@ public sealed class WsfeSoapClientTests
                "<ar:Orden>1</ar:Orden>" +
                "<ar:CAEA>61234567890123</ar:CAEA>" +
                "<ar:FchProceso>20260401</ar:FchProceso>" +
+                "<ar:FchVigDesde>20260401</ar:FchVigDesde>" +
+                "<ar:FchVigHasta>20260415</ar:FchVigHasta>" +
                "<ar:FchTopeInf>20260415</ar:FchTopeInf>" +
                "</ar:ResultGet>" +
                "</ar:FECAEAConsultarResult>" +
@@ -1111,6 +1121,8 @@ public sealed class WsfeSoapClientTests
                "<ar:Orden>2</ar:Orden>" +
                "<ar:CAEA>69876543210987</ar:CAEA>" +
                "<ar:FchProceso>20260416</ar:FchProceso>" +
+                "<ar:FchVigDesde>20260416</ar:FchVigDesde>" +
+                "<ar:FchVigHasta>20260430</ar:FchVigHasta>" +
                "<ar:FchTopeInf>20260430</ar:FchTopeInf>" +
                "</ar:ResultGet>" +
                "</ar:FECAEASolicitarResult>" +

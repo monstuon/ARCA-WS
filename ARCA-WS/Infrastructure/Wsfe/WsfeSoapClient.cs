@@ -596,7 +596,9 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
             var order = TryParseInt(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "Orden")?.Value) ?? 0;
             var caea = resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "CAEA")?.Value;
             var processDate = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName is "FchProceso" or "FchProc")?.Value);
-            var dueDate = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName is "FchTopeInf" or "FchVigHasta")?.Value);
+            var validFrom = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "FchVigDesde")?.Value);
+            var validTo = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "FchVigHasta")?.Value);
+            var informationDueDate = TryParseDate(resultGet.Descendants().FirstOrDefault(e => e.Name.LocalName == "FchTopeInf")?.Value);
 
             var pointOfSales = resultGet.Descendants()
                 .Where(e => e.Name.LocalName is "PtoVta" or "PtoVenta")
@@ -614,7 +616,17 @@ public sealed class WsfeSoapClient(HttpClient httpClient, ILogger<WsfeSoapClient
                 .DistinctBy(e => e.PointOfSale)
                 .ToList();
 
-            return new CaeaResult(period, order, caea, processDate, dueDate, pointOfSales, errors);
+            return new CaeaResult(
+                period,
+                order,
+                caea,
+                processDate,
+                informationDueDate,
+                pointOfSales,
+                errors,
+                validFrom,
+                validTo,
+                informationDueDate);
         }
         catch (ArcaException)
         {

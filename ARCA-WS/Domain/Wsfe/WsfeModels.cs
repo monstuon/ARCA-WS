@@ -142,7 +142,10 @@ public sealed record CaeaResult(
     DateOnly? ProcessDate,
     DateOnly? DueDate,
     IReadOnlyList<PuntosHabilitadosCaeaItem> PointsOfSale,
-    IReadOnlyList<WsfeError> Errors);
+    IReadOnlyList<WsfeError> Errors,
+    DateOnly? ValidFrom = null,
+    DateOnly? ValidTo = null,
+    DateOnly? InformationDueDate = null);
 
 public sealed record CaeaRegInformativoRequest(
     int PointOfSale,
