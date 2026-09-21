@@ -75,7 +75,7 @@ public sealed class Wsfev1InvoicingService(
                 }
             }
 
-            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: false, cancellationToken: ct);
+            var auth = await authenticationService.GetCredentialsAsync(forceRefresh: true, cancellationToken: ct);
             var result = await wsfeSoapClient.GetLastVoucherAsync(endpoint, auth.Token, auth.Sign, options.TaxpayerId, pointOfSale, voucherType, ct);
             metrics.RecordCredentialSource("wsfe.get-last-voucher", "wsaa-fallback");
             return result with
